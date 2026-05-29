@@ -1,0 +1,104 @@
+{
+  "id": 260029,
+  "email": "ssekikaw@student.42tokyo.jp",
+  "login": "ssekikaw",
+  "first_name": "Sakura",
+  "last_name": "Sekikawa",
+  "usual_full_name": null,
+  "usual_first_name": null,
+  "url": "https://api.intra.42.fr/v2/users/ssekikaw",
+  "phone": null,
+  "displayname": "Sakura Sekikawa",
+  "kind": "student",
+  "image": {
+    "link": "https://cdn.intra.42.fr/users/b2b6802151239593c3ccedaec89d0f93/ssekikaw.jpg",
+    "versions": {
+      "large": "https://cdn.intra.42.fr/users/large_ssekikaw.jpg",
+      "medium": "https://cdn.intra.42.fr/users/medium_ssekikaw.jpg",
+      "small": "https://cdn.intra.42.fr/users/small_ssekikaw.jpg",
+      "micro": "https://cdn.intra.42.fr/users/micro_ssekikaw.jpg"
+    }
+  },
+  "staff?": false,
+  "correction_point": 3,
+  "pool_month": "april",
+  "pool_year": "2026",
+  "location": null,
+  "wallet": 0,
+  "alumni?": false,
+  "active?": true,
+  "cursus_users": [
+    {
+      "id": 350001,
+      "begin_at": "2026-04-07T01:00:00.000Z",
+      "end_at": "2026-04-28T18:42:00.000Z",
+      "grade": "Pisciner",
+      "level": 5.42,
+      "skills": [],
+      "cursus_id": 9,
+      "has_coalition": false,
+      "blackholed_at": null,
+      "cursus": {
+        "id": 9,
+        "created_at": "2015-11-04T14:15:04.986Z",
+        "name": "C Piscine",
+        "slug": "c-piscine"
+      }
+    },
+    {
+      "id": 350002,
+      "begin_at": "2026-05-06T01:00:00.000Z",
+      "end_at": null,
+      "grade": null,
+      "level": 8.12,
+      "skills": [],
+      "cursus_id": 21,
+      "has_coalition": true,
+      "blackholed_at": "2026-07-05T00:00:00.000Z",
+      "cursus": {
+        "id": 21,
+        "created_at": "2019-07-29T08:45:17.896Z",
+        "name": "42cursus",
+        "slug": "42cursus"
+      }
+    }
+  ],
+  "projects_users": [
+    {
+      "id": 4100001,
+      "occurrence": 0,
+      "final_mark": 115,
+      "status": "finished",
+      "validated?": true,
+      "current_team_id": 5900001,
+      "project": {
+        "id": 1314,
+        "name": "Libft",
+        "slug": "42cursus-libft",
+        "parent_id": null
+      },
+      "cursus_ids": [21],
+      "marked_at": "2026-05-18T09:30:00.000Z",
+      "marked": true,
+      "retriable_at": null
+    },
+    {
+      "id": 4100002,
+      "occurrence": 0,
+      "final_mark": null,
+      "status": "in_progress",
+      "validated?": false,
+      "current_team_id": 5900002,
+      "project": {
+        "id": 1316,
+        "name": "ft_printf",
+        "slug": "42cursus-ft_printf",
+        "parent_id": null
+      },
+      "cursus_ids": [21],
+      "marked_at": null,
+      "marked": false,
+      "retriable_at": null
+    }
+  ]
+}

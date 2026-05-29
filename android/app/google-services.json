@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1021337077830",
+    "project_id": "ft-intra-flutter",
+    "storage_bucket": "ft-intra-flutter.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1021337077830:android:1a62d9accbc83427e6e247",
+        "android_client_info": {
+          "package_name": "com.guild42.ft_intra42"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAr1lVzoBZpvEw8iTj7Ojfj0F-_QwvQ3ts"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
