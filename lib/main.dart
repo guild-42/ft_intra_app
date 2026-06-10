@@ -19,7 +19,12 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      await FcmService.initialize();
+      await FcmService.initialize(
+        // Cold-start taps arrive before runApp — defer until the router is
+        // attached to the first frame.
+        onNavigate: (route) => WidgetsBinding.instance
+            .addPostFrameCallback((_) => routerConfig.go(route)),
+      );
     } catch (e) {
       debugPrint('Firebase init failed: $e');
     }

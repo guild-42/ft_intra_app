@@ -4,7 +4,7 @@ part 'slot.freezed.dart';
 part 'slot.g.dart';
 
 @freezed
-class FtSlot with _$FtSlot {
+abstract class FtSlot with _$FtSlot {
   const factory FtSlot({
     required int id,
     @JsonKey(name: 'begin_at') required String beginAt,

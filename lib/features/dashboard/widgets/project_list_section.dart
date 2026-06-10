@@ -3,7 +3,6 @@ import 'package:ft_intra/core/models/user.dart';
 
 const _pageSize = 15;
 const _piscineCursusId = 9;
-const _mainCursusId = 21;
 
 List<ProjectUser> _sorted(List<ProjectUser> projects) {
   final copy = List<ProjectUser>.from(projects);

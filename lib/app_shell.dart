@@ -46,6 +46,11 @@ class AppShell extends ConsumerWidget {
               label: s.get('tab_campus'),
             ),
             NavigationDestination(
+              icon: const Icon(Icons.event_outlined),
+              selectedIcon: const Icon(Icons.event),
+              label: s.get('events'),
+            ),
+            NavigationDestination(
               icon: const Icon(Icons.rate_review_outlined),
               selectedIcon: const Icon(Icons.rate_review),
               label: s.get('tab_evals'),

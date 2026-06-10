@@ -29,7 +29,32 @@ class FriendWatcher {
     if (kIsWeb) return;
     _timer?.cancel();
     _timer = Timer.periodic(_checkInterval, (_) => _check());
+    _backfillMissingLastSeen();
     _check();
+  }
+
+  /// One-shot backfill for friends added before lastSeenAt tracking existed
+  /// (their column is null forever otherwise — new adds are backfilled at add
+  /// time by friends_tab). Rate-limited by the API interceptor (2 req/sec).
+  Future<void> _backfillMissingLastSeen() async {
+    try {
+      final friends = await _db.getAllFriends();
+      for (final friend in friends.where((f) => f.lastSeenAt == null)) {
+        try {
+          final locations =
+              await _api.getUserLocations(friend.userId, pageSize: 1);
+          if (locations.isEmpty) continue;
+          final ts = DateTime.tryParse(locations.first.beginAt);
+          if (ts != null) {
+            await _db.setFriendLastSeenIfMissing(friend.userId, ts);
+          }
+        } catch (e) {
+          debugPrint('FriendWatcher backfill failed for ${friend.userId}: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('FriendWatcher backfill failed: $e');
+    }
   }
 
   void stop() {

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/notifications/fcm_service.dart';
+import 'package:ft_intra/core/notifications/notification_optin.dart';
 
 class CookieWebViewScreen extends ConsumerStatefulWidget {
   const CookieWebViewScreen({super.key});
@@ -168,6 +169,7 @@ class _CookieWebViewScreenState extends ConsumerState<CookieWebViewScreen> {
 
       final backend = ref.read(backendClientProvider);
       final prefs = ref.read(notificationPreferencesProvider);
+      final optin = ref.read(notificationOptInProvider);
       final watchIds = await ref.read(databaseProvider).getFriendWatchIds();
       await backend.register(
         accessToken: accessToken,
@@ -180,6 +182,8 @@ class _CookieWebViewScreenState extends ConsumerState<CookieWebViewScreen> {
         prefReview: prefs.review,
         prefFriend: prefs.friend,
         friendWatchIds: watchIds,
+        consentVersion: optin.consentVersion,
+        consentedAt: optin.consentedAt,
       );
     } catch (e) {
       debugPrint('Backend register failed: $e');

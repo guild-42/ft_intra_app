@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
 
+enum _CallbackState { exchanging, noCode, failed }
+
 class CallbackScreen extends ConsumerStatefulWidget {
   final String? code;
   const CallbackScreen({super.key, this.code});
@@ -12,7 +14,7 @@ class CallbackScreen extends ConsumerStatefulWidget {
 }
 
 class _CallbackScreenState extends ConsumerState<CallbackScreen> {
-  String _status = 'Exchanging authorization code...';
+  _CallbackState _state = _CallbackState.exchanging;
 
   @override
   void initState() {
@@ -22,7 +24,7 @@ class _CallbackScreenState extends ConsumerState<CallbackScreen> {
 
   Future<void> _exchangeToken() async {
     if (widget.code == null) {
-      setState(() => _status = 'Error: No authorization code received');
+      setState(() => _state = _CallbackState.noCode);
       return;
     }
 
@@ -34,27 +36,34 @@ class _CallbackScreenState extends ConsumerState<CallbackScreen> {
       ref.read(friendWatcherProvider).start();
       context.go('/dashboard');
     } else if (mounted) {
-      setState(() => _status = 'Login failed. Please try again.');
+      setState(() => _state = _CallbackState.failed);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final s = ref.watch(stringsProvider);
+    final message = switch (_state) {
+      _CallbackState.exchanging => s.get('exchanging_code'),
+      _CallbackState.noCode => s.get('error_no_code'),
+      _CallbackState.failed => s.get('login_failed'),
+    };
+    final isError = _state != _CallbackState.exchanging;
+
     return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (!_status.startsWith('Error') && !_status.startsWith('Login failed'))
-              const CircularProgressIndicator(),
+            if (!isError) const CircularProgressIndicator(),
             const SizedBox(height: 24),
-            Text(_status),
-            if (_status.startsWith('Error') || _status.startsWith('Login failed'))
+            Text(message),
+            if (isError)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: FilledButton(
                   onPressed: () => context.go('/login'),
-                  child: const Text('Back to Login'),
+                  child: Text(s.get('back_to_login')),
                 ),
               ),
           ],

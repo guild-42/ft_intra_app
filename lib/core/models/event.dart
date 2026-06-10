@@ -4,7 +4,7 @@ part 'event.freezed.dart';
 part 'event.g.dart';
 
 @freezed
-class FtEvent with _$FtEvent {
+abstract class FtEvent with _$FtEvent {
   const factory FtEvent({
     required int id,
     required String name,

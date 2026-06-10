@@ -25,7 +25,7 @@ class FtConstants {
   // PKCE 用の public client_id（app 埋め込み可）。client_secret は app に持たせない
   // （PKCE は secret 不要。OAuth code 交換は backend /api/oauth/exchange が代行）。
   static const String clientId =
-      'u-s4t2ud-b10fb627b168e381895af1d3e5c5e9f3ca43138b7fa88f538ec5b88f98c07150';
+      'u-s4t2ud-4a065c9caaecc660cbfc6a25c16142b54fdb125b9250f10da7c78163e08ae5ea';
 
   static const String redirectUriMobile = 'ft-intra42://callback';
   static const String redirectUriWeb = 'http://localhost:8080/callback';
@@ -59,6 +59,6 @@ class FtConstants {
 
   static const String backendBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'https://ft-intra-1021337077830.asia-northeast1.run.app',
+    defaultValue: 'https://ft-intra.guild42.net',
   );
 }

@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/models/user.dart';
 import 'package:ft_intra/features/auth/login_screen.dart';
 import 'package:ft_intra/features/auth/callback_screen.dart';
+import 'package:ft_intra/features/auth/oauth_webview_screen.dart';
 import 'package:ft_intra/features/dashboard/dashboard_screen.dart';
 import 'package:ft_intra/features/dashboard/project_detail_screen.dart';
 import 'package:ft_intra/features/notifications/notifications_screen.dart';
@@ -11,6 +11,7 @@ import 'package:ft_intra/features/campus/campus_screen.dart';
 import 'package:ft_intra/features/campus/user_profile_screen.dart';
 import 'package:ft_intra/features/campus/user_detail_screen.dart';
 import 'package:ft_intra/features/evaluations/evaluations_screen.dart';
+import 'package:ft_intra/features/events/events_screen.dart';
 import 'package:ft_intra/features/settings/settings_screen.dart';
 import 'package:ft_intra/app_shell.dart';
 
@@ -49,6 +50,10 @@ final routerConfig = GoRouter(
     GoRoute(
       path: '/cookie-login',
       builder: (context, state) => const CookieWebViewScreen(),
+    ),
+    GoRoute(
+      path: '/oauth',
+      builder: (context, state) => const OAuthWebViewScreen(),
     ),
     GoRoute(
       path: '/user/:login',
@@ -91,6 +96,12 @@ final routerConfig = GoRouter(
           GoRoute(
             path: '/campus',
             builder: (context, state) => const CampusScreen(),
+          ),
+        ]),
+        StatefulShellBranch(routes: [
+          GoRoute(
+            path: '/events',
+            builder: (context, state) => const EventsScreen(),
           ),
         ]),
         StatefulShellBranch(routes: [

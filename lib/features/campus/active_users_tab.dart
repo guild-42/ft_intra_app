@@ -5,7 +5,7 @@ import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/models/location.dart';
 import 'package:ft_intra/core/db/app_database.dart';
 import 'package:ft_intra/shared/widgets/user_avatar.dart';
-import 'package:ft_intra/features/campus/campus_screen.dart';
+import 'package:ft_intra/features/campus/campus_helpers.dart';
 
 class ActiveUsersTab extends ConsumerStatefulWidget {
   const ActiveUsersTab({super.key});

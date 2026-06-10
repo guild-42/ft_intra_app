@@ -4,7 +4,7 @@ part 'location.freezed.dart';
 part 'location.g.dart';
 
 @freezed
-class FtLocation with _$FtLocation {
+abstract class FtLocation with _$FtLocation {
   const factory FtLocation({
     required int id,
     @JsonKey(name: 'begin_at') required String beginAt,
@@ -23,7 +23,7 @@ class FtLocation with _$FtLocation {
 }
 
 @freezed
-class LocationUser with _$LocationUser {
+abstract class LocationUser with _$LocationUser {
   const factory LocationUser({
     required int id,
     required String login,

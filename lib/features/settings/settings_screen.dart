@@ -1,12 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:dio/dio.dart';
-import 'package:ft_intra/config/constants.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/notifications/notification_preferences.dart';
+import 'package:ft_intra/core/notifications/notification_optin.dart';
 import 'package:ft_intra/core/notifications/fcm_service.dart';
 import 'package:ft_intra/core/checkin/checkin_permissions.dart';
+import 'package:ft_intra/features/settings/consent_dialog.dart';
 import 'package:ft_intra/l10n/strings.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -19,6 +20,7 @@ class SettingsScreen extends ConsumerWidget {
     final selectedCampus = ref.watch(selectedCampusIdProvider);
     final campusesAsync = ref.watch(allCampusesProvider);
     final prefs = ref.watch(notificationPreferencesProvider);
+    final optin = ref.watch(notificationOptInProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -58,13 +60,19 @@ class SettingsScreen extends ConsumerWidget {
                   value: campuses.any((c) => c.id == selectedCampus)
                       ? selectedCampus
                       : null,
-                  hint: const Text('Select'),
+                  hint: const SizedBox(width: 96, child: Text('Select')),
                   underline: const SizedBox.shrink(),
                   dropdownColor: Theme.of(context).cardTheme.color,
                   items: campuses.map((c) {
                     return DropdownMenuItem(
                       value: c.id,
-                      child: Text('${c.name}'),
+                      child: SizedBox(
+                        width: 96,
+                        child: Text(
+                          c.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -81,49 +89,51 @@ class SettingsScreen extends ConsumerWidget {
             const _CheckinSettings(),
             const Divider(),
             _SectionHeader(title: s.get('notifications')),
-            _NotificationToggle(
-              icon: Icons.rate_review,
-              title: s.get('notification_review'),
-              value: prefs.review,
-              type: NotificationPrefType.review,
-            ),
+            const _CookieMasterToggle(),
             _NotificationToggle(
               icon: Icons.monetization_on,
               title: s.get('notification_evalpo'),
               value: prefs.evalpo,
               type: NotificationPrefType.evalpo,
+              enabled: optin.cookieEnabled,
             ),
             _NotificationToggle(
               icon: Icons.event,
               title: s.get('notification_event'),
               value: prefs.event,
               type: NotificationPrefType.event,
+              enabled: optin.cookieEnabled,
             ),
             _NotificationToggle(
               icon: Icons.people,
               title: s.get('notification_friend'),
               value: prefs.friend,
               type: NotificationPrefType.friend,
+              enabled: optin.cookieEnabled,
             ),
+            const _ReviewMasterToggle(),
+            const Divider(),
+            _SectionHeader(title: s.get('notif_my_server_data')),
+            const _ServerDataSection(),
             const Divider(),
             const _SectionHeader(title: 'Developer'),
             ListTile(
               leading: const Icon(Icons.send, color: Colors.blue),
               title: const Text('Send test push notification'),
               subtitle: const Text('Triggers Backend → FCM → device'),
-              onTap: () => _post(context, '/api/test-push'),
+              onTap: () => _post(context, ref, '/api/test-push'),
             ),
             ListTile(
               leading: const Icon(Icons.bug_report, color: Colors.orange),
               title: const Text('Send fake notification'),
               subtitle: const Text('Pretend an evalpo sale just started'),
-              onTap: () => _post(context, '/api/test-notification'),
+              onTap: () => _post(context, ref, '/api/test-notification'),
             ),
             ListTile(
               leading: const Icon(Icons.cloud_sync, color: Colors.teal),
               title: const Text('Poll intra now'),
               subtitle: const Text("Don't wait 5 min, fetch right now"),
-              onTap: () => _post(context, '/api/poll-now'),
+              onTap: () => _post(context, ref, '/api/poll-now'),
             ),
             const Divider(),
             ListTile(
@@ -147,13 +157,13 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _post(BuildContext context, String path) async {
+  Future<void> _post(BuildContext context, WidgetRef ref, String path) async {
     try {
-      final resp = await Dio().post('${FtConstants.backendBaseUrl}$path');
+      final data = await ref.read(backendClientProvider).adminPost(path);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${resp.data}'),
+            content: Text(data),
             backgroundColor: Colors.green,
           ),
         );
@@ -174,36 +184,215 @@ class _NotificationToggle extends ConsumerWidget {
   final bool value;
   final NotificationPrefType type;
 
+  /// Gated behind the cookie master toggle — disabled until the user has opted
+  /// in (and a cookie has been sent to the server).
+  final bool enabled;
+
   const _NotificationToggle({
     required this.icon,
     required this.title,
     required this.value,
     required this.type,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SwitchListTile(
       secondary: Icon(icon),
-      title: Text(title),
-      value: value,
+      title: Padding(padding: const EdgeInsets.only(left: 16), child: Text(title)),
+      value: value && enabled,
       activeColor: const Color(0xFF00BABC),
-      onChanged: (enabled) async {
-        await ref
-            .read(notificationPreferencesProvider.notifier)
-            .set(type, enabled);
-        final fcmToken = await FcmService.getToken();
-        if (fcmToken == null) return;
-        final backend = ref.read(backendClientProvider);
-        await backend.updatePreferences(
-          fcmToken: fcmToken,
-          prefEvalpo: type == NotificationPrefType.evalpo ? enabled : null,
-          prefEvent: type == NotificationPrefType.event ? enabled : null,
-          prefReview: type == NotificationPrefType.review ? enabled : null,
-          prefFriend: type == NotificationPrefType.friend ? enabled : null,
-        );
+      onChanged: enabled
+          ? (on) async {
+              await ref
+                  .read(notificationPreferencesProvider.notifier)
+                  .set(type, on);
+              final fcmToken = await FcmService.getToken();
+              if (fcmToken == null) return;
+              final backend = ref.read(backendClientProvider);
+              await backend.updatePreferences(
+                fcmToken: fcmToken,
+                prefEvalpo: type == NotificationPrefType.evalpo ? on : null,
+                prefEvent: type == NotificationPrefType.event ? on : null,
+                prefReview: type == NotificationPrefType.review ? on : null,
+                prefFriend: type == NotificationPrefType.friend ? on : null,
+              );
+            }
+          : null,
+    );
+  }
+}
+
+const _teal = Color(0xFF00BABC);
+
+/// Master toggle A: opt in to sending the intra cookie to the server (gates
+/// evalpo / event / friend notifications). ON → consent → cookie webview;
+/// OFF → delete cookie from server.
+class _CookieMasterToggle extends ConsumerWidget {
+  const _CookieMasterToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(stringsProvider);
+    final optin = ref.watch(notificationOptInProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.notifications_active),
+      title: Text(s.get('notif_enable_cookie')),
+      value: optin.cookieEnabled,
+      activeColor: _teal,
+      onChanged: (on) async {
+        final notifier = ref.read(notificationOptInProvider.notifier);
+        if (on) {
+          final agreed = await showConsentDialog(context, s, forToken: false);
+          if (!agreed) return;
+          await notifier.recordConsent();
+          await notifier.setCookieEnabled(true);
+          if (context.mounted) context.push('/cookie-login');
+        } else {
+          await notifier.setCookieEnabled(false);
+          final fcm = await FcmService.getToken();
+          final access = await ref.read(tokenStorageProvider).getAccessToken();
+          if (fcm != null && access != null) {
+            await ref.read(backendClientProvider).deleteCredential(
+                fcmToken: fcm, type: 'cookie', accessToken: access);
+          }
+        }
       },
     );
+  }
+}
+
+/// Master toggle B: opt in to sending the 42 OAuth token to the server (review
+/// notifications). ON → consent → in-app OAuth capture → push token; OFF →
+/// delete token from server.
+class _ReviewMasterToggle extends ConsumerWidget {
+  const _ReviewMasterToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(stringsProvider);
+    final optin = ref.watch(notificationOptInProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.rate_review),
+      title: Text(s.get('notif_enable_review')),
+      value: optin.reviewEnabled,
+      activeColor: _teal,
+      onChanged: (on) async {
+        final notifier = ref.read(notificationOptInProvider.notifier);
+        final messenger = ScaffoldMessenger.of(context);
+        if (on) {
+          final agreed = await showConsentDialog(context, s, forToken: true);
+          if (!agreed || !context.mounted) return;
+          await notifier.recordConsent();
+          if (!context.mounted) return;
+          final ok = await context.push<bool>('/oauth');
+          if (ok != true) {
+            messenger.showSnackBar(
+                SnackBar(content: Text(s.get('notif_capture_failed'))));
+            return;
+          }
+          final sent = await _sendTokenToBackend(ref);
+          if (!sent) {
+            messenger.showSnackBar(
+                SnackBar(content: Text(s.get('notif_capture_failed'))));
+            return;
+          }
+          await ref
+              .read(notificationPreferencesProvider.notifier)
+              .set(NotificationPrefType.review, true);
+          await notifier.setReviewEnabled(true);
+        } else {
+          await notifier.setReviewEnabled(false);
+          await ref
+              .read(notificationPreferencesProvider.notifier)
+              .set(NotificationPrefType.review, false);
+          final fcm = await FcmService.getToken();
+          final access = await ref.read(tokenStorageProvider).getAccessToken();
+          if (fcm != null && access != null) {
+            await ref.read(backendClientProvider).deleteCredential(
+                fcmToken: fcm, type: 'token', accessToken: access);
+          }
+        }
+      },
+    );
+  }
+}
+
+/// Sends the freshly-captured OAuth token (access + refresh) to the backend
+/// along with the recorded consent. Returns false if anything is missing.
+Future<bool> _sendTokenToBackend(WidgetRef ref) async {
+  final ts = ref.read(tokenStorageProvider);
+  final access = await ts.getAccessToken();
+  final refresh = await ts.getRefreshToken();
+  if (access == null) {
+    debugPrint('sendToken: access token null (exchange did not store it)');
+    return false;
+  }
+  final fcm = await FcmService.getToken();
+  if (fcm == null) {
+    debugPrint('sendToken: FCM token null (APNS not ready?)');
+    return false;
+  }
+  final optin = ref.read(notificationOptInProvider);
+  final ok = await ref.read(backendClientProvider).register(
+        accessToken: access,
+        refreshToken: refresh,
+        fcmToken: fcm,
+        cookie: '',
+        platform: defaultTargetPlatform.name,
+        language: ref.read(localeProvider),
+        prefReview: true,
+        consentVersion: optin.consentVersion,
+        consentedAt: optin.consentedAt,
+      );
+  debugPrint('sendToken: backend register returned $ok');
+  return ok;
+}
+
+/// "My data (server)" — explicit per-credential deletion from the backend.
+class _ServerDataSection extends ConsumerWidget {
+  const _ServerDataSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(stringsProvider);
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+          title: Text(s.get('notif_delete_cookie')),
+          onTap: () => _delete(context, ref, 'cookie'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+          title: Text(s.get('notif_delete_token')),
+          onTap: () => _delete(context, ref, 'token'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref, String type) async {
+    final s = ref.read(stringsProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    final fcm = await FcmService.getToken();
+    final access = await ref.read(tokenStorageProvider).getAccessToken();
+    if (fcm == null || access == null) return;
+    final ok = await ref
+        .read(backendClientProvider)
+        .deleteCredential(fcmToken: fcm, type: type, accessToken: access);
+    final notifier = ref.read(notificationOptInProvider.notifier);
+    if (type == 'cookie') {
+      await notifier.setCookieEnabled(false);
+    } else {
+      await notifier.setReviewEnabled(false);
+      await ref
+          .read(notificationPreferencesProvider.notifier)
+          .set(NotificationPrefType.review, false);
+    }
+    messenger.showSnackBar(
+        SnackBar(content: Text(ok ? s.get('notif_deleted') : 'Error')));
   }
 }
 

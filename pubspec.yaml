@@ -15,25 +15,25 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # State management
-  flutter_riverpod: ^2.6.1
-  riverpod_annotation: ^2.6.1
+  flutter_riverpod: ^3.3.2-dev.2
+  riverpod_annotation: ^4.0.3-dev.2
 
   # Routing
-  go_router: ^14.8.1
+  go_router: ^17.2.3
 
   # Network
   dio: ^5.7.0
-  retrofit: 4.4.1
+  retrofit: ^4.9.2
 
   # Auth
-  flutter_appauth: ^7.0.1
-  flutter_secure_storage: ^9.2.4
+  flutter_appauth: ^12.0.1
+  flutter_secure_storage: ^10.3.1
   shared_preferences: ^2.3.4
 
   # Local DB
-  drift: 2.22.1
-  drift_flutter: 0.2.4
-  sqlite3_flutter_libs: ^0.5.28
+  drift: ^2.33.0
+  drift_flutter: ^0.3.0
+  sqlite3_flutter_libs: ^0.6.0+eol
   path_provider: ^2.1.5
   path: ^1.9.0
 
@@ -44,7 +44,7 @@ dependencies:
   html: ^0.15.5
 
   # Data classes
-  freezed_annotation: ^2.4.4
+  freezed_annotation: ^3.1.0
   json_annotation: ^4.9.0
 
   # WebView & URL
@@ -54,12 +54,12 @@ dependencies:
 
   # Location-based check-in (geofencing)
   native_geofence: ^1.0.0
-  geolocator: ^13.0.1
-  permission_handler: ^11.3.1
+  geolocator: ^14.0.2
+  permission_handler: ^12.0.2
 
   # Firebase
-  firebase_core: ^3.8.1
-  firebase_messaging: ^15.1.6
+  firebase_core: ^4.9.0
+  firebase_messaging: ^16.2.2
   flutter_local_notifications: ^18.0.1
 
   # UI
@@ -68,17 +68,18 @@ dependencies:
   intl: ^0.20.2
   timeago: ^3.7.0
   percent_indicator: ^4.2.3
+  syncfusion_flutter_calendar: ^32.1.23
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
   # Code generation
   build_runner: ^2.4.13
-  riverpod_generator: ^2.6.3
-  retrofit_generator: 9.1.5
-  freezed: ^2.5.7
+  riverpod_generator: ^4.0.4-dev.3
+  retrofit_generator: ^10.2.6
+  freezed: ^3.2.6-dev.1
   json_serializable: ^6.9.0
   drift_dev: ^2.22.1
 

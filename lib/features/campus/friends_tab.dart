@@ -7,7 +7,7 @@ import 'package:ft_intra/core/db/app_database.dart';
 import 'package:ft_intra/core/api/ft_api_client.dart';
 import 'package:ft_intra/core/notifications/fcm_service.dart';
 import 'package:ft_intra/shared/widgets/user_avatar.dart';
-import 'package:ft_intra/features/campus/campus_screen.dart';
+import 'package:ft_intra/features/campus/campus_helpers.dart';
 
 class FriendsTab extends ConsumerWidget {
   const FriendsTab({super.key});

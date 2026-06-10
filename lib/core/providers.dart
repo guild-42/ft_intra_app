@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ft_intra/core/auth/token_storage.dart';
 import 'package:ft_intra/core/auth/auth_service.dart';
@@ -8,6 +9,7 @@ import 'package:ft_intra/core/api/ft_api_client.dart';
 import 'package:ft_intra/core/api/auth_interceptor.dart';
 import 'package:ft_intra/core/api/rate_limit_interceptor.dart';
 import 'package:ft_intra/core/api/backend_client.dart';
+import 'package:ft_intra/core/api/ipv4_http.dart';
 import 'package:ft_intra/core/models/user.dart';
 import 'package:ft_intra/core/models/location.dart';
 import 'package:ft_intra/core/models/scale_team.dart';
@@ -33,7 +35,11 @@ final authServiceProvider = Provider<AuthService>((ref) {
 });
 
 final dioProvider = Provider<Dio>((ref) {
-  final dio = Dio();
+  final dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 40),
+  ));
+  applyIpv4Preference(dio);
   dio.interceptors.addAll([
     AuthInterceptor(ref.watch(tokenStorageProvider)),
     RateLimitInterceptor(),
@@ -128,16 +134,34 @@ final userDetailProvider =
   return api.getUser(login);
 });
 
-final myScaleTeamsAsCorrectorProvider =
+// Fetch every page of a scale_teams endpoint (capped for safety), newest first.
+Future<List<ScaleTeam>> _fetchAllScaleTeams(
+  Future<List<ScaleTeam>> Function(int page) page,
+) async {
+  final all = <ScaleTeam>[];
+  for (var p = 1; p <= 30; p++) {
+    final batch = await page(p);
+    all.addAll(batch);
+    if (batch.length < 100) break;
+  }
+  all.sort((a, b) => b.beginAt.compareTo(a.beginAt));
+  return all;
+}
+
+// All reviews where I was the Reviewer (corrector).
+final reviewsAsReviewerProvider =
     FutureProvider.autoDispose<List<ScaleTeam>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  return api.getMyScaleTeamsAsCorrector(pageSize: 30);
+  return _fetchAllScaleTeams(
+      (p) => api.getScaleTeamsAsCorrector(page: p, pageSize: 100));
 });
 
-final myScaleTeamsAsCorrectedProvider =
+// All reviews where I was the Reviewee (corrected).
+final reviewsAsRevieweeProvider =
     FutureProvider.autoDispose<List<ScaleTeam>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  return api.getMyScaleTeamsAsCorrected(pageSize: 30);
+  return _fetchAllScaleTeams(
+      (p) => api.getScaleTeamsAsCorrected(page: p, pageSize: 100));
 });
 
 // My evaluation availability slots (own slots; create/delete via ft_api_client).

@@ -1,11 +1,25 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ft_intra/config/constants.dart';
+import 'package:ft_intra/core/api/ipv4_http.dart';
 import 'package:ft_intra/core/checkin/checkin_models.dart';
 
 class BackendClient {
   final Dio _dio;
 
-  BackendClient({Dio? dio}) : _dio = dio ?? Dio();
+  BackendClient({Dio? dio}) : _dio = dio ?? _defaultDio();
+
+  // Explicit timeouts (Dio defaults to none → a stalled connection hangs the
+  // caller forever) + IPv4-preferred connections to avoid intermittent
+  // timeouts on networks with a broken IPv6 path.
+  static Dio _defaultDio() {
+    final dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 40),
+    ));
+    applyIpv4Preference(dio);
+    return dio;
+  }
 
   Future<bool> register({
     required String accessToken,
@@ -18,6 +32,9 @@ class BackendClient {
     bool prefReview = true,
     bool prefFriend = true,
     List<int> friendWatchIds = const [],
+    String? refreshToken,
+    String? consentVersion,
+    DateTime? consentedAt,
   }) async {
     try {
       await _dio.post(
@@ -33,10 +50,45 @@ class BackendClient {
           'pref_review': prefReview,
           'pref_friend': prefFriend,
           'friend_watch_ids': friendWatchIds,
+          if (refreshToken != null) 'refresh_token': refreshToken,
+          if (consentVersion != null) 'consent_version': consentVersion,
+          if (consentedAt != null) 'consented_at': consentedAt.toIso8601String(),
         },
       );
       return true;
     } catch (_) {
+      return false;
+    }
+  }
+
+  /// Delete a stored credential from the server. [type] is `cookie` or `token`.
+  /// [accessToken] proves device ownership: the backend verifies it against
+  /// /v2/me and only deletes when the verified 42 user owns [fcmToken]'s device
+  /// (anti-IDOR). Removes that user's cookie, or clears the device's OAuth token.
+  Future<bool> deleteCredential({
+    required String fcmToken,
+    required String type,
+    required String accessToken,
+  }) async {
+    try {
+      await _dio.delete(
+        '${FtConstants.backendBaseUrl}/api/credentials',
+        data: {
+          'fcm_token': fcmToken,
+          'type': type,
+          'access_token': accessToken,
+        },
+      );
+      return true;
+    } catch (e) {
+      // Don't swallow silently: the UI only shows a generic "failed" snackbar,
+      // so without this the real cause is invisible. 404 = endpoint not deployed,
+      // 422 = body stripped in transit, 401 = access_token invalid/expired.
+      debugPrint('deleteCredential($type) failed: $e');
+      if (e is DioException) {
+        debugPrint('  type=${e.type} status=${e.response?.statusCode} '
+            'data=${e.response?.data}');
+      }
       return false;
     }
   }
@@ -70,18 +122,13 @@ class BackendClient {
     }
   }
 
-  Future<bool> updateCookie({
-    required String accessToken,
-    required String fcmToken,
-    required String cookie,
-  }) async {
-    return register(
-      accessToken: accessToken,
-      fcmToken: fcmToken,
-      cookie: cookie,
-      platform: 'ios',
-      language: 'en',
-    );
+  /// Developer/debug helper: POST a backend admin endpoint (test-push,
+  /// test-notification, poll-now) and return its response body as text. Goes
+  /// through this client (no raw Dio in the UI) — backend endpoints need no 42
+  /// auth, so the bare _dio without interceptors is correct here.
+  Future<String> adminPost(String path) async {
+    final resp = await _dio.post('${FtConstants.backendBaseUrl}$path');
+    return '${resp.data}';
   }
 
   // ───── Location-based check-in ─────

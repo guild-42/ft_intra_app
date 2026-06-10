@@ -62,35 +62,25 @@ abstract class FtApiClient {
     @Query('page[number]') int page = 1,
   });
 
+  // Reviews where the user is the corrector (Reviewer) / corrected (Reviewee).
+  // Needs the `projects` OAuth scope, otherwise returns an empty array.
   @GET('/me/scale_teams/as_corrector')
-  Future<List<ScaleTeam>> getMyScaleTeamsAsCorrector({
-    @Query('page[size]') int pageSize = 30,
+  Future<List<ScaleTeam>> getScaleTeamsAsCorrector({
+    @Query('page[size]') int pageSize = 100,
     @Query('page[number]') int page = 1,
   });
 
   @GET('/me/scale_teams/as_corrected')
-  Future<List<ScaleTeam>> getMyScaleTeamsAsCorrected({
-    @Query('page[size]') int pageSize = 30,
+  Future<List<ScaleTeam>> getScaleTeamsAsCorrected({
+    @Query('page[size]') int pageSize = 100,
     @Query('page[number]') int page = 1,
   });
 
-  // ───── Slots (evaluation availability) ─────
-  // public scope + resource-owner token can manage the user's OWN slots.
-
+  // Read-only: slot create/delete require a non-public OAuth scope (403), so
+  // only listing is wired.
   @GET('/me/slots')
   Future<List<FtSlot>> getMySlots({
     @Query('page[size]') int pageSize = 100,
     @Query('page[number]') int page = 1,
   });
-
-  /// Create one (or several, if the range spans multiple 15-min blocks) slot(s).
-  /// Body: { "slot": { "begin_at": iso8601, "end_at": iso8601 } }
-  /// `user_id` is auto-set by 42 to the resource owner; do NOT send it.
-  /// Returns void — the response may be a single object or an array, so the
-  /// caller should refetch via [getMySlots] instead of parsing the result.
-  @POST('/slots')
-  Future<void> createSlot(@Body() Map<String, dynamic> body);
-
-  @DELETE('/slots/{id}')
-  Future<void> deleteSlot(@Path('id') int id);
 }

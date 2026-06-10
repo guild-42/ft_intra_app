@@ -6,23 +6,22 @@ part of 'scale_team.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$ScaleTeamImpl _$$ScaleTeamImplFromJson(Map<String, dynamic> json) =>
-    _$ScaleTeamImpl(
-      id: (json['id'] as num).toInt(),
-      scaleId: (json['scale_id'] as num).toInt(),
-      beginAt: json['begin_at'] as String,
-      filledAt: json['filled_at'] as String?,
-      finalMark: (json['final_mark'] as num?)?.toInt(),
-      comment: json['comment'] as String?,
-      feedback: json['feedback'] as String?,
-      corrector: json['corrector'],
-      correcteds: json['correcteds'] as List<dynamic>? ?? const [],
-      team: json['team'] == null
-          ? null
-          : ScaleTeamTeam.fromJson(json['team'] as Map<String, dynamic>),
-    );
+_ScaleTeam _$ScaleTeamFromJson(Map<String, dynamic> json) => _ScaleTeam(
+  id: (json['id'] as num).toInt(),
+  scaleId: (json['scale_id'] as num).toInt(),
+  beginAt: json['begin_at'] as String,
+  filledAt: json['filled_at'] as String?,
+  finalMark: (json['final_mark'] as num?)?.toInt(),
+  comment: json['comment'] as String?,
+  feedback: json['feedback'] as String?,
+  corrector: json['corrector'],
+  correcteds: json['correcteds'] as List<dynamic>? ?? const [],
+  team: json['team'] == null
+      ? null
+      : ScaleTeamTeam.fromJson(json['team'] as Map<String, dynamic>),
+);
 
-Map<String, dynamic> _$$ScaleTeamImplToJson(_$ScaleTeamImpl instance) =>
+Map<String, dynamic> _$ScaleTeamToJson(_ScaleTeam instance) =>
     <String, dynamic>{
       'id': instance.id,
       'scale_id': instance.scaleId,
@@ -36,8 +35,8 @@ Map<String, dynamic> _$$ScaleTeamImplToJson(_$ScaleTeamImpl instance) =>
       'team': instance.team,
     };
 
-_$ScaleTeamTeamImpl _$$ScaleTeamTeamImplFromJson(Map<String, dynamic> json) =>
-    _$ScaleTeamTeamImpl(
+_ScaleTeamTeam _$ScaleTeamTeamFromJson(Map<String, dynamic> json) =>
+    _ScaleTeamTeam(
       id: (json['id'] as num).toInt(),
       name: json['name'] as String,
       projectId: (json['project_id'] as num).toInt(),
@@ -45,7 +44,7 @@ _$ScaleTeamTeamImpl _$$ScaleTeamTeamImplFromJson(Map<String, dynamic> json) =>
       finalMark: (json['final_mark'] as num?)?.toInt(),
     );
 
-Map<String, dynamic> _$$ScaleTeamTeamImplToJson(_$ScaleTeamTeamImpl instance) =>
+Map<String, dynamic> _$ScaleTeamTeamToJson(_ScaleTeamTeam instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,

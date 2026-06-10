@@ -5,8 +5,6 @@ import 'package:ft_intra/config/constants.dart';
 class RateLimitInterceptor extends Interceptor {
   final int _maxPerSecond;
   final List<DateTime> _timestamps = [];
-  final _lock = Completer<void>()..complete();
-  Completer<void>? _waiting;
 
   RateLimitInterceptor({
     int maxPerSecond = FtConstants.rateLimitPerSecond,

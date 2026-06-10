@@ -64,22 +64,42 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
-          if (from < 2) {
+          // 冪等マイグレーション。createTable(friends) は「現行スキーマ(全列)」で作るため、
+          // 単純な addColumn 列挙だと古い端末で "duplicate column" になる(drift の落とし穴)。
+          // 実テーブル/列を見て、無いものだけ作る。
+          final tables = (await m.database
+                  .customSelect("SELECT name FROM sqlite_master WHERE type='table'")
+                  .get())
+              .map((r) => r.read<String>('name'))
+              .toSet();
+
+          if (!tables.contains(friends.actualTableName)) {
             await m.createTable(friends);
+          } else {
+            final cols = (await m.database
+                    .customSelect('PRAGMA table_info(${friends.actualTableName})')
+                    .get())
+                .map((r) => r.read<String>('name'))
+                .toSet();
+            if (!cols.contains(friends.nickname.name)) {
+              await m.addColumn(friends, friends.nickname);
+            }
+            if (!cols.contains(friends.level.name)) {
+              await m.addColumn(friends, friends.level);
+            }
+            if (!cols.contains(friends.blackholedAt.name)) {
+              await m.addColumn(friends, friends.blackholedAt);
+            }
+            if (!cols.contains(friends.discordDmUrl.name)) {
+              await m.addColumn(friends, friends.discordDmUrl);
+            }
+            if (!cols.contains(friends.notifyEnabled.name)) {
+              await m.addColumn(friends, friends.notifyEnabled);
+            }
           }
-          if (from < 3) {
-            await m.addColumn(friends, friends.nickname);
-          }
-          if (from < 4) {
-            await m.addColumn(friends, friends.level);
-            await m.addColumn(friends, friends.blackholedAt);
-            await m.addColumn(friends, friends.discordDmUrl);
-          }
-          if (from < 5) {
+
+          if (!tables.contains(cachedUsers.actualTableName)) {
             await m.createTable(cachedUsers);
-          }
-          if (from < 6) {
-            await m.addColumn(friends, friends.notifyEnabled);
           }
         },
       );

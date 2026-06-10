@@ -4,7 +4,7 @@ part 'scale_team.freezed.dart';
 part 'scale_team.g.dart';
 
 @freezed
-class ScaleTeam with _$ScaleTeam {
+abstract class ScaleTeam with _$ScaleTeam {
   const factory ScaleTeam({
     required int id,
     @JsonKey(name: 'scale_id') required int scaleId,
@@ -23,7 +23,7 @@ class ScaleTeam with _$ScaleTeam {
 }
 
 @freezed
-class ScaleTeamTeam with _$ScaleTeamTeam {
+abstract class ScaleTeamTeam with _$ScaleTeamTeam {
   const factory ScaleTeamTeam({
     required int id,
     required String name,

@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
-import 'package:ft_intra/core/db/app_database.dart';
+import 'package:ft_intra/modules/notifications/notifications.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(stringsProvider);
     final notifsAsync = ref.watch(notificationsStreamProvider);
 
     return Scaffold(
@@ -73,12 +72,7 @@ class NotificationsScreen extends ConsumerWidget {
   }
 
   Future<void> _refresh(WidgetRef ref) async {
-    final db = ref.read(databaseProvider);
-    final cookie = await db.getValidCookie();
-    if (cookie == null) return;
-
-    final scraper = ref.read(notificationScraperProvider);
-    await scraper.scrapeAndStore(db, cookie);
+    await ref.read(notificationsRepositoryProvider).refreshFromCookie();
   }
 }
 

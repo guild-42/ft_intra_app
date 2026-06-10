@@ -4,7 +4,7 @@ part 'user.freezed.dart';
 part 'user.g.dart';
 
 @freezed
-class FtUser with _$FtUser {
+abstract class FtUser with _$FtUser {
   const factory FtUser({
     required int id,
     required String login,
@@ -29,7 +29,7 @@ class FtUser with _$FtUser {
 }
 
 @freezed
-class FtUserImage with _$FtUserImage {
+abstract class FtUserImage with _$FtUserImage {
   const factory FtUserImage({
     String? link,
     FtImageVersions? versions,
@@ -40,7 +40,7 @@ class FtUserImage with _$FtUserImage {
 }
 
 @freezed
-class FtImageVersions with _$FtImageVersions {
+abstract class FtImageVersions with _$FtImageVersions {
   const factory FtImageVersions({
     String? large,
     String? medium,
@@ -53,7 +53,7 @@ class FtImageVersions with _$FtImageVersions {
 }
 
 @freezed
-class CursusUser with _$CursusUser {
+abstract class CursusUser with _$CursusUser {
   const factory CursusUser({
     required int id,
     @JsonKey(name: 'begin_at') String? beginAt,
@@ -70,7 +70,7 @@ class CursusUser with _$CursusUser {
 }
 
 @freezed
-class CursusInfo with _$CursusInfo {
+abstract class CursusInfo with _$CursusInfo {
   const factory CursusInfo({
     required int id,
     required String name,
@@ -83,7 +83,7 @@ class CursusInfo with _$CursusInfo {
 }
 
 @freezed
-class ProjectUser with _$ProjectUser {
+abstract class ProjectUser with _$ProjectUser {
   const factory ProjectUser({
     required int id,
     @JsonKey(name: 'final_mark') int? finalMark,
@@ -99,7 +99,7 @@ class ProjectUser with _$ProjectUser {
 }
 
 @freezed
-class ProjectInfo with _$ProjectInfo {
+abstract class ProjectInfo with _$ProjectInfo {
   const factory ProjectInfo({
     required int id,
     required String name,

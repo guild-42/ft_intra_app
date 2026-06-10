@@ -15,7 +15,6 @@ abstract class TokenStorage {
   Future<String?> getAccessToken();
   Future<String?> getRefreshToken();
   Future<String?> getClientId();
-  Future<void> saveClientId(String clientId);
   Future<void> saveTokens({required String accessToken, String? refreshToken, int? expiresIn});
   Future<bool> hasValidToken();
   Future<void> clearTokens();
@@ -38,10 +37,6 @@ class _WebTokenStorage implements TokenStorage {
   @override
   Future<String?> getClientId() async =>
       (await SharedPreferences.getInstance()).getString(_keyClientId);
-
-  @override
-  Future<void> saveClientId(String clientId) async =>
-      (await SharedPreferences.getInstance()).setString(_keyClientId, clientId);
 
   @override
   Future<void> saveTokens({required String accessToken, String? refreshToken, int? expiresIn}) async {
@@ -98,10 +93,6 @@ class _NativeTokenStorage implements TokenStorage {
   Future<String?> getRefreshToken() => _storage.read(key: _keyRefreshToken);
   @override
   Future<String?> getClientId() => _storage.read(key: _keyClientId);
-
-  @override
-  Future<void> saveClientId(String clientId) =>
-      _storage.write(key: _keyClientId, value: clientId);
 
   @override
   Future<void> saveTokens({required String accessToken, String? refreshToken, int? expiresIn}) async {

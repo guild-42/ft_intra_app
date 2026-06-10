@@ -3,16 +3,7 @@ import 'package:ft_intra/features/campus/active_users_tab.dart';
 import 'package:ft_intra/features/campus/friends_tab.dart';
 import 'package:ft_intra/features/campus/checkin_tab.dart';
 
-String clusterFromHost(String host) {
-  // c1r5p3 -> c1 ; 1A1 -> 1A ; e1r2p1 -> e1
-  final match = RegExp(r'^([a-zA-Z]?\d+[a-zA-Z]*|\d*[a-zA-Z]+\d*)').firstMatch(host);
-  if (match == null) return host;
-  final m = match.group(1)!;
-  // strip trailing rN/pN
-  final idx = m.indexOf(RegExp(r'[rRpP]'));
-  if (idx > 0) return m.substring(0, idx);
-  return m;
-}
+export 'package:ft_intra/features/campus/campus_helpers.dart' show clusterFromHost;
 
 class CampusScreen extends StatelessWidget {
   const CampusScreen({super.key});

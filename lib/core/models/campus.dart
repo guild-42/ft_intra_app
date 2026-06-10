@@ -4,7 +4,7 @@ part 'campus.freezed.dart';
 part 'campus.g.dart';
 
 @freezed
-class FtCampus with _$FtCampus {
+abstract class FtCampus with _$FtCampus {
   const factory FtCampus({
     required int id,
     required String name,
