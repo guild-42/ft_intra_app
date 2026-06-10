@@ -6,6 +6,11 @@ class RateLimitInterceptor extends Interceptor {
   final int _maxPerSecond;
   final List<DateTime> _timestamps = [];
 
+  /// The Dio this interceptor is installed on (set after construction) so the
+  /// 429 retry re-enters the full stack — fresh auth header + rate limiting —
+  /// instead of going out through a bare client.
+  Dio? retryDio;
+
   RateLimitInterceptor({
     int maxPerSecond = FtConstants.rateLimitPerSecond,
   }) : _maxPerSecond = maxPerSecond;
@@ -21,12 +26,14 @@ class RateLimitInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 429) {
+    final alreadyRetried = err.requestOptions.extra['rate_retried'] == true;
+    if (err.response?.statusCode == 429 && !alreadyRetried) {
       final retryAfter = err.response?.headers.value('retry-after');
       final waitSeconds = int.tryParse(retryAfter ?? '') ?? 2;
       await Future.delayed(Duration(seconds: waitSeconds));
+      err.requestOptions.extra['rate_retried'] = true;
       try {
-        final response = await Dio().fetch(err.requestOptions);
+        final response = await (retryDio ?? Dio()).fetch(err.requestOptions);
         return handler.resolve(response);
       } catch (e) {
         return handler.next(err);

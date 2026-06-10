@@ -4,6 +4,11 @@ import 'package:ft_intra/core/auth/token_storage.dart';
 class AuthInterceptor extends Interceptor {
   final TokenStorage _tokenStorage;
 
+  /// The Dio this interceptor is installed on. Set after construction (the
+  /// interceptor is created while building that same Dio) so the 401 retry
+  /// re-enters the full interceptor stack instead of a bare client.
+  Dio? retryDio;
+
   AuthInterceptor(this._tokenStorage);
 
   @override
@@ -20,13 +25,17 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401) {
+    final alreadyRetried = err.requestOptions.extra['auth_retried'] == true;
+    if (err.response?.statusCode == 401 && !alreadyRetried) {
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
         final token = await _tokenStorage.getAccessToken();
         err.requestOptions.headers['Authorization'] = 'Bearer $token';
+        // Loop guard: if the retry 401s again we fall through to the caller.
+        err.requestOptions.extra['auth_retried'] = true;
         try {
-          final response = await Dio().fetch(err.requestOptions);
+          final response =
+              await (retryDio ?? Dio()).fetch(err.requestOptions);
           return handler.resolve(response);
         } catch (e) {
           return handler.next(err);

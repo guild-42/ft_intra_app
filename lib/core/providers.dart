@@ -40,10 +40,10 @@ final dioProvider = Provider<Dio>((ref) {
     receiveTimeout: const Duration(seconds: 40),
   ));
   applyIpv4Preference(dio);
-  dio.interceptors.addAll([
-    AuthInterceptor(ref.watch(tokenStorageProvider)),
-    RateLimitInterceptor(),
-  ]);
+  final auth = AuthInterceptor(ref.watch(tokenStorageProvider))
+    ..retryDio = dio;
+  final rateLimit = RateLimitInterceptor()..retryDio = dio;
+  dio.interceptors.addAll([auth, rateLimit]);
   return dio;
 });
 
