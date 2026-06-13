@@ -38,5 +38,18 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # permission_handler compiles each permission OUT unless its macro is set
+    # to 1 (PermissionHandlerEnums.h defaults every macro to 0 via #ifndef).
+    # Without these, Permission.location/notification .request() never shows the
+    # iOS dialog and returns denied, so no Location option appears in Settings.
+    # We only enable the two the check-in flow uses; all others stay 0.
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] += [
+        'PERMISSION_LOCATION=1',
+        'PERMISSION_NOTIFICATIONS=1',
+      ]
+    end
   end
 end
