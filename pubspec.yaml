@@ -73,6 +73,11 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # On-device UI tests that drive the real widget tree (run on the booted
+  # simulator with `flutter test integration_test/`). Closes the AI test loop
+  # for flows the Chrome web build can't exercise.
+  integration_test:
+    sdk: flutter
   flutter_lints: ^6.0.0
 
   # Code generation
