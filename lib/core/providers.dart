@@ -159,7 +159,7 @@ Future<List<ScaleTeam>> _fetchAllScaleTeams(
   all.sort((a, b) => b.beginAt.compareTo(a.beginAt));
   final past = all.where((t) => t.filledAt != null).length;
   debugPrint('[evals] $label total=${all.length} (past=$past, upcoming=${all.length - past})'
-      '${all.isEmpty ? "  ← empty: likely missing `projects` OAuth scope" : ""}');
+      '${all.isEmpty ? "  ← empty: scale_teams needs no scope, so the account has no records in this role" : ""}');
   return all;
 }
 

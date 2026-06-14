@@ -63,7 +63,10 @@ abstract class FtApiClient {
   });
 
   // Reviews where the user is the corrector (Reviewer) / corrected (Reviewee).
-  // Needs the `projects` OAuth scope, otherwise returns an empty array.
+  // No special OAuth scope required — `public` is enough (verified against the
+  // 42 apidoc 2026-06-15; `projects` scope is needed for /me/slots, NOT here).
+  // An empty result therefore means the account genuinely has no scale_teams in
+  // that role, not a scope problem. See doc_v2/08_FT_API_REFERENCE.md.
   @GET('/me/scale_teams/as_corrector')
   Future<List<ScaleTeam>> getScaleTeamsAsCorrector({
     @Query('page[size]') int pageSize = 100,
