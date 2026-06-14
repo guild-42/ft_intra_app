@@ -176,6 +176,19 @@ Future<void> _logTokenScopes(Dio dio) async {
   } catch (e) {
     debugPrint('[evals] token scope check failed: $e');
   }
+  // Decisive check: does the UNFILTERED /me/scale_teams return anything? If it
+  // does while as_corrector/as_corrected are empty, the sub-routes are the
+  // problem (switch to base + partition client-side); if it's also 0, the
+  // account genuinely has no scale_teams. Raw dio avoids a retrofit regen.
+  try {
+    final r = await dio.get('https://api.intra.42.fr/v2/me/scale_teams',
+        queryParameters: {'page[size]': 100});
+    final n = r.data is List ? (r.data as List).length : -1;
+    debugPrint('[evals] base /me/scale_teams (unfiltered) → $n item(s) '
+        '${n > 0 ? "← sub-route issue: data exists but as_corrector/as_corrected are empty" : "← account truly has no scale_teams"}');
+  } catch (e) {
+    debugPrint('[evals] base /me/scale_teams check failed: $e');
+  }
 }
 
 // All reviews where I was the Reviewer (corrector).
