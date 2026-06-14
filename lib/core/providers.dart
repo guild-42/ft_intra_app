@@ -189,6 +189,26 @@ Future<void> _logTokenScopes(Dio dio) async {
   } catch (e) {
     debugPrint('[evals] base /me/scale_teams check failed: $e');
   }
+  // The "Feedbacks you made" page (projects.intra.42.fr/users/:login/feedbacks)
+  // is the `feedbacks` resource, NOT scale_teams. There's no /me/feedbacks, so
+  // fetch /me for the id then /v2/feedbacks?filter[user_id]=. Probe whether this
+  // returns the records the user expects (past evaluations they authored).
+  try {
+    final me = await dio.get('https://api.intra.42.fr/v2/me');
+    final uid = (me.data is Map) ? me.data['id'] : null;
+    final fb = await dio.get('https://api.intra.42.fr/v2/feedbacks',
+        queryParameters: {'filter[user_id]': '$uid', 'page[size]': 100});
+    final list = fb.data is List ? fb.data as List : const [];
+    debugPrint('[evals] feedbacks?filter[user_id]=$uid → ${list.length} item(s)');
+    if (list.isNotEmpty) {
+      final f = list.first as Map;
+      debugPrint('[evals] feedback sample: type=${f['feedbackable_type']} '
+          'rating=${f['rating']} created_at=${f['created_at']} '
+          'comment=${'${f['comment']}'.length > 40 ? '${'${f['comment']}'.substring(0, 40)}…' : f['comment']}');
+    }
+  } catch (e) {
+    debugPrint('[evals] feedbacks probe failed: $e');
+  }
 }
 
 // All reviews where I was the Reviewer (corrector).
