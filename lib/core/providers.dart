@@ -135,16 +135,29 @@ final userDetailProvider =
 });
 
 // Fetch every page of a scale_teams endpoint (capped for safety), newest first.
+// [label] tags the verification logs so an empty list can be told apart from a
+// scope/auth problem: a 0-count with no error == the `projects` scope is
+// missing (the endpoint returns an empty array, not a 403).
 Future<List<ScaleTeam>> _fetchAllScaleTeams(
+  String label,
   Future<List<ScaleTeam>> Function(int page) page,
 ) async {
   final all = <ScaleTeam>[];
-  for (var p = 1; p <= 30; p++) {
-    final batch = await page(p);
-    all.addAll(batch);
-    if (batch.length < 100) break;
+  try {
+    for (var p = 1; p <= 30; p++) {
+      final batch = await page(p);
+      debugPrint('[evals] $label page $p → ${batch.length} item(s)');
+      all.addAll(batch);
+      if (batch.length < 100) break;
+    }
+  } catch (e) {
+    debugPrint('[evals] $label FAILED: $e');
+    rethrow;
   }
   all.sort((a, b) => b.beginAt.compareTo(a.beginAt));
+  final past = all.where((t) => t.filledAt != null).length;
+  debugPrint('[evals] $label total=${all.length} (past=$past, upcoming=${all.length - past})'
+      '${all.isEmpty ? "  ← empty: likely missing `projects` OAuth scope" : ""}');
   return all;
 }
 
@@ -153,7 +166,7 @@ final reviewsAsReviewerProvider =
     FutureProvider.autoDispose<List<ScaleTeam>>((ref) async {
   final api = ref.watch(apiClientProvider);
   return _fetchAllScaleTeams(
-      (p) => api.getScaleTeamsAsCorrector(page: p, pageSize: 100));
+      'as_corrector', (p) => api.getScaleTeamsAsCorrector(page: p, pageSize: 100));
 });
 
 // All reviews where I was the Reviewee (corrected).
@@ -161,7 +174,7 @@ final reviewsAsRevieweeProvider =
     FutureProvider.autoDispose<List<ScaleTeam>>((ref) async {
   final api = ref.watch(apiClientProvider);
   return _fetchAllScaleTeams(
-      (p) => api.getScaleTeamsAsCorrected(page: p, pageSize: 100));
+      'as_corrected', (p) => api.getScaleTeamsAsCorrected(page: p, pageSize: 100));
 });
 
 // My evaluation availability slots (own slots; create/delete via ft_api_client).
