@@ -163,12 +163,29 @@ Future<List<ScaleTeam>> _fetchAllScaleTeams(
   return all;
 }
 
+// Logs the 42 token's actual granted scopes. scale_teams returns an empty
+// array (HTTP 200, not 403) when `projects` is missing, so this disambiguates
+// "no projects scope" from "account genuinely has no reviews". /oauth/token/info
+// lives outside the /v2 base, so we use the raw (Bearer-injecting) Dio.
+Future<void> _logTokenScopes(Dio dio) async {
+  try {
+    final r = await dio.get('https://api.intra.42.fr/oauth/token/info');
+    final scopes = r.data is Map ? r.data['scopes'] : r.data;
+    debugPrint('[evals] token scopes=$scopes '
+        '${'$scopes'.contains('projects') ? '' : '← `projects` NOT granted (re-login / enable scope in 42 app)'}');
+  } catch (e) {
+    debugPrint('[evals] token scope check failed: $e');
+  }
+}
+
 // All reviews where I was the Reviewer (corrector).
 final reviewsAsReviewerProvider =
     FutureProvider.autoDispose<List<ScaleTeam>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  return _fetchAllScaleTeams(
+  final list = await _fetchAllScaleTeams(
       'as_corrector', (p) => api.getScaleTeamsAsCorrector(page: p, pageSize: 100));
+  if (list.isEmpty) await _logTokenScopes(ref.watch(dioProvider));
+  return list;
 });
 
 // All reviews where I was the Reviewee (corrected).
