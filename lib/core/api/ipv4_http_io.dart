@@ -31,7 +31,15 @@ void applyIpv4PreferenceImpl(Dio dio) {
           return connect(literal);
         }
         return InternetAddress.lookup(host).then((addrs) {
-          final v4 = addrs.where((a) => a.type == InternetAddressType.IPv4);
+          final v4 = addrs
+              .where((a) => a.type == InternetAddressType.IPv4)
+              .toList()
+            // Cloudflare returns multiple edge IPs; dart:io has no Happy-Eyeballs
+            // and would always pick the first, so a momentarily-bad path stalls
+            // the full connectTimeout. Shuffle so each (re)connect picks a
+            // different edge — paired with the API client's connect-retry this
+            // recovers instead of repeatedly hitting the same bad IP.
+            ..shuffle();
           final target = v4.isNotEmpty ? v4.first : addrs.first;
           return connect(target);
         });

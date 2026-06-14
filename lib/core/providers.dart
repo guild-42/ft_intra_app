@@ -8,6 +8,7 @@ import 'package:ft_intra/core/auth/auth_service.dart';
 import 'package:ft_intra/core/api/ft_api_client.dart';
 import 'package:ft_intra/core/api/auth_interceptor.dart';
 import 'package:ft_intra/core/api/rate_limit_interceptor.dart';
+import 'package:ft_intra/core/api/connection_retry_interceptor.dart';
 import 'package:ft_intra/core/api/backend_client.dart';
 import 'package:ft_intra/core/api/ipv4_http.dart';
 import 'package:ft_intra/core/models/user.dart';
@@ -43,7 +44,8 @@ final dioProvider = Provider<Dio>((ref) {
   final auth = AuthInterceptor(ref.watch(tokenStorageProvider))
     ..retryDio = dio;
   final rateLimit = RateLimitInterceptor()..retryDio = dio;
-  dio.interceptors.addAll([auth, rateLimit]);
+  final connRetry = ConnectionRetryInterceptor()..retryDio = dio;
+  dio.interceptors.addAll([auth, rateLimit, connRetry]);
   return dio;
 });
 
