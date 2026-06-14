@@ -35,34 +35,68 @@ class AuthService {
       '&response_type=code'
       '&scope=${Uri.encodeComponent('public projects')}';
 
-  Future<bool> exchangeCode(String code) async {
-    try {
-      final response = await _dio.post(
-        '${FtConstants.backendBaseUrl}/api/oauth/exchange',
-        data: {
-          'code': code,
-          'redirect_uri': FtConstants.redirectUri,
-        },
-      );
+  // The OAuth code is consumed by 42 only on a SUCCESSFUL exchange, and a
+  // connect-phase failure never reaches the backend, so the same code is still
+  // valid to retry. Cloudflare resolves to multiple edge IPs and dart:io has no
+  // Happy-Eyeballs, so a single attempt can stall the full connectTimeout on a
+  // momentarily-bad path (users saw login succeed on the 2nd–3rd try). Retry
+  // transparently on connect-phase errors so the user doesn't have to.
+  static const _maxExchangeAttempts = 3;
 
-      final data = response.data as Map<String, dynamic>;
-      await _tokenStorage.saveTokens(
-        accessToken: data['access_token'] as String,
-        refreshToken: data['refresh_token'] as String?,
-        expiresIn: data['expires_in'] as int?,
-      );
-      return true;
-    } catch (e) {
-      // Surface the real failure in the debug console (timeout / DNS / TLS /
-      // HTTP status) instead of silently hanging or showing a generic message.
-      debugPrint('exchangeCode failed: $e');
-      if (e is DioException) {
-        debugPrint('  type=${e.type} status=${e.response?.statusCode} '
-            'data=${e.response?.data}');
+  Future<bool> exchangeCode(String code) async {
+    // [auth] is the grep tag for the whole login token-exchange flow.
+    final endpoint = '${FtConstants.backendBaseUrl}/api/oauth/exchange';
+    debugPrint('[auth] exchangeCode start → $endpoint '
+        '(redirect_uri=${FtConstants.redirectUri}, code=${_short(code)})');
+
+    for (var attempt = 1; attempt <= _maxExchangeAttempts; attempt++) {
+      final sw = Stopwatch()..start();
+      try {
+        debugPrint('[auth] attempt $attempt/$_maxExchangeAttempts POST …');
+        final response = await _dio.post(
+          endpoint,
+          data: {
+            'code': code,
+            'redirect_uri': FtConstants.redirectUri,
+          },
+        );
+
+        final data = response.data as Map<String, dynamic>;
+        await _tokenStorage.saveTokens(
+          accessToken: data['access_token'] as String,
+          refreshToken: data['refresh_token'] as String?,
+          expiresIn: data['expires_in'] as int?,
+        );
+        debugPrint('[auth] SUCCESS on attempt $attempt in ${sw.elapsedMilliseconds}ms '
+            '(scope=${data['scope']}, expires_in=${data['expires_in']})');
+        return true;
+      } on DioException catch (e) {
+        final transient = e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.connectionError;
+        debugPrint('[auth] attempt $attempt FAILED after ${sw.elapsedMilliseconds}ms: '
+            'type=${e.type} status=${e.response?.statusCode} '
+            'transient=$transient data=${e.response?.data}');
+        // Only connect-phase failures are safe + worth retrying; a server
+        // response (e.g. 401 invalid_grant) is terminal — the code is spent.
+        if (transient && attempt < _maxExchangeAttempts) {
+          final backoff = Duration(milliseconds: 400 * attempt);
+          debugPrint('[auth] retrying in ${backoff.inMilliseconds}ms …');
+          await Future.delayed(backoff);
+          continue;
+        }
+        debugPrint('[auth] GIVING UP after $attempt attempt(s)');
+        return false;
+      } catch (e) {
+        debugPrint('[auth] non-Dio failure on attempt $attempt: $e');
+        return false;
       }
-      return false;
     }
+    return false;
   }
+
+  // Redact all but the first/last few chars of a secret for safe logging.
+  static String _short(String s) =>
+      s.length <= 10 ? '***' : '${s.substring(0, 4)}…${s.substring(s.length - 4)}';
 
   Future<bool> isLoggedIn() => _tokenStorage.hasValidToken();
 
