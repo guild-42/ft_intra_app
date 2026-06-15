@@ -122,15 +122,6 @@ class BackendClient {
     }
   }
 
-  /// Developer/debug helper: POST a backend admin endpoint (test-push,
-  /// test-notification, poll-now) and return its response body as text. Goes
-  /// through this client (no raw Dio in the UI) — backend endpoints need no 42
-  /// auth, so the bare _dio without interceptors is correct here.
-  Future<String> adminPost(String path) async {
-    final resp = await _dio.post('${FtConstants.backendBaseUrl}$path');
-    return '${resp.data}';
-  }
-
   // ───── Location-based check-in ─────
   //
   // The backend verifies [accessToken] against /v2/me and ties the check-in to
