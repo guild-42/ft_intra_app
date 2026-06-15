@@ -133,6 +133,11 @@ final cachedUsersMapProvider = StreamProvider<Map<int, CachedUser>>((ref) {
 
 final userDetailProvider =
     FutureProvider.family<FtUser, String>((ref, login) async {
+  // Tapping yourself in the campus list shouldn't trigger a second heavy
+  // /users/:login fetch — /me (already warmed at startup) is the same user and
+  // is richer. Reuse it so self-detail opens instantly.
+  final me = ref.read(currentUserProvider).asData?.value;
+  if (me != null && me.login == login) return me;
   final api = ref.watch(apiClientProvider);
   return api.getUser(login);
 });

@@ -3,13 +3,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
 
   const AppShell({super.key, required this.navigationShell});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  @override
+  void initState() {
+    super.initState();
+    // Warm /me in the background at startup. On mobile the Home tab is a
+    // WebView (it never reads currentUserProvider), so without this the first
+    // thing that needs the profile — e.g. tapping yourself in the campus list —
+    // pays the full 42 API latency. Prefetching makes self-detail instant
+    // (userDetailProvider reuses this for your own login).
+    Future.microtask(() => ref.read(currentUserProvider));
+  }
+
+  StatefulNavigationShell get navigationShell => widget.navigationShell;
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(stringsProvider);
 
     return Scaffold(
