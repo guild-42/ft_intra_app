@@ -1,7 +1,7 @@
 name: ft_intra
 description: "42 Intranet mobile app — multi-language dashboard, push notifications, campus tracking"
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ^3.8.1
