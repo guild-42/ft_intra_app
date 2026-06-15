@@ -22,6 +22,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     // pays the full 42 API latency. Prefetching makes self-detail instant
     // (userDetailProvider reuses this for your own login).
     Future.microtask(() => ref.read(currentUserProvider));
+
+    // Prefetch campus presence and the eval schedule at startup so opening those
+    // tabs is instant instead of starting the fetch on first view. listenManual
+    // (not read) keeps these autoDispose providers alive for the session.
+    ref.listenManual(campusPresenceProvider, (_, __) {});
+    ref.listenManual(upcomingSlotsProvider, (_, __) {});
   }
 
   StatefulNavigationShell get navigationShell => widget.navigationShell;

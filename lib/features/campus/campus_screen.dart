@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ft_intra/features/campus/active_users_tab.dart';
 import 'package:ft_intra/features/campus/friends_tab.dart';
+import 'package:ft_intra/features/campus/checkin_button.dart';
 
 export 'package:ft_intra/features/campus/campus_helpers.dart' show clusterFromHost;
 
@@ -30,6 +31,8 @@ class CampusScreen extends StatelessWidget {
                   indicatorSize: TabBarIndicatorSize.tab,
                 ),
               ),
+              // Shared compact check-in button — visible on both tabs.
+              const CheckinButton(),
               const Expanded(
                 child: TabBarView(
                   children: [

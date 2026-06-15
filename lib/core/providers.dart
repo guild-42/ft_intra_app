@@ -418,6 +418,12 @@ final campusPresenceProvider =
     byId.putIfAbsent(
         c.userId, () => CampusPresence(userId: c.userId, login: c.login));
   }
+  // Check-in-only users aren't in the locations list, so campusLocationsProvider
+  // never cached their avatar — cache the full presence set so their photos
+  // show too (ensureCached skips already-cached ids).
+  Future.microtask(() async {
+    await ref.read(userCacheServiceProvider).ensureCached(byId.keys.toList());
+  });
   return byId.values.toList();
 });
 
