@@ -164,14 +164,85 @@ final myFeedbacksProvider =
   return all;
 });
 
-// Lazy detail for one feedback's scale_team (project name + counterpart),
-// fetched only when a history row is tapped. Individual /v2/scale_teams/:id
-// works even though the /me list is empty. Throws → caller shows a fallback.
-final scaleTeamDetailProvider =
-    FutureProvider.autoDispose.family<ScaleTeam, int>((ref, id) async {
+// One enriched evaluation history row: the feedback joined with its scale_team
+// (when resolvable), exposing my role (reviewer vs reviewee), the counterpart,
+// the project and the date.
+class EvalRecord {
+  final FtFeedback feedback;
+  final ScaleTeam? team; // null for Event feedbacks or if the join failed
+  final int myId;
+  const EvalRecord(this.feedback, this.team, this.myId);
+
+  bool get isEvent => !feedback.isScaleTeam;
+
+  /// true = I was the corrector (I reviewed); false = I was corrected
+  /// (I was reviewed); null = unknown (no scale_team resolved).
+  bool? get iReviewed {
+    final t = team;
+    if (t == null) return null;
+    final c = t.corrector;
+    if (c is Map && c['id'] == myId) return true;
+    if (t.correcteds.any((e) => e is Map && e['id'] == myId)) return false;
+    return null;
+  }
+
+  String? get counterpartLogin {
+    final t = team;
+    if (t == null) return null;
+    final r = iReviewed;
+    if (r == true) {
+      final c = t.correcteds.isNotEmpty ? t.correcteds.first : null;
+      return c is Map ? c['login'] as String? : null;
+    }
+    if (r == false) {
+      final c = t.corrector;
+      return c is Map ? c['login'] as String? : null;
+    }
+    return null;
+  }
+
+  String? get project => team?.team?.name;
+  int? get finalMark => team?.finalMark;
+  DateTime? get date => feedback.createdAtLocal;
+}
+
+// Evaluation history: feedbacks I authored, each joined with its scale_team via
+// a bulk filter[id] fetch (a few requests, not 53). The join yields project +
+// counterpart + my role; if /v2/scale_teams is restricted for this account the
+// rows still render with rating/comment/date.
+final evalHistoryProvider =
+    FutureProvider.autoDispose<List<EvalRecord>>((ref) async {
   final dio = ref.watch(dioProvider);
-  final r = await dio.get('https://api.intra.42.fr/v2/scale_teams/$id');
-  return ScaleTeam.fromJson(r.data as Map<String, dynamic>);
+  final me = await ref.watch(currentUserProvider.future);
+  final feedbacks = await ref.watch(myFeedbacksProvider.future);
+
+  final ids = feedbacks
+      .where((f) => f.isScaleTeam && f.feedbackableId != null)
+      .map((f) => f.feedbackableId!)
+      .toSet()
+      .toList();
+
+  final teamById = <int, ScaleTeam>{};
+  for (var i = 0; i < ids.length; i += 100) {
+    final chunk = ids.sublist(i, (i + 100).clamp(0, ids.length));
+    try {
+      final r = await dio.get(
+        'https://api.intra.42.fr/v2/scale_teams',
+        queryParameters: {'filter[id]': chunk.join(','), 'page[size]': 100},
+      );
+      for (final m in (r.data as List).cast<Map<String, dynamic>>()) {
+        final t = ScaleTeam.fromJson(m);
+        teamById[t.id] = t;
+      }
+    } catch (e) {
+      debugPrint('[evals] scale_teams bulk fetch failed: $e');
+    }
+  }
+  debugPrint('[evals] enriched ${teamById.length}/${ids.length} scale_teams');
+
+  return feedbacks
+      .map((f) => EvalRecord(f, teamById[f.feedbackableId], me.id))
+      .toList();
 });
 
 // My evaluation availability slots (own slots; create/delete via ft_api_client).

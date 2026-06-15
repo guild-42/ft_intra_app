@@ -4,8 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 import 'package:ft_intra/core/providers.dart';
-import 'package:ft_intra/core/models/scale_team.dart';
-import 'package:ft_intra/core/models/feedback.dart';
 import 'package:ft_intra/core/models/slot.dart';
 import 'package:ft_intra/features/evaluations/slot_block.dart';
 
@@ -53,9 +51,9 @@ class EvaluationsScreen extends ConsumerWidget {
                 color: Theme.of(context).scaffoldBackgroundColor,
                 child: TabBar(
                   tabs: [
-                    Tab(text: s.get('eval_history')),
                     Tab(text: s.get('eval_schedule')),
                     Tab(text: s.get('my_slots')),
+                    Tab(text: s.get('eval_history')),
                   ],
                   labelColor: _teal,
                   indicatorColor: _teal,
@@ -65,9 +63,9 @@ class EvaluationsScreen extends ConsumerWidget {
               const Expanded(
                 child: TabBarView(
                   children: [
-                    _FeedbackList(),
                     _ScheduleList(),
                     _MySlotsTab(),
+                    _FeedbackList(),
                   ],
                 ),
               ),
@@ -92,7 +90,7 @@ class _FeedbackList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
-    final async = ref.watch(myFeedbacksProvider);
+    final async = ref.watch(evalHistoryProvider);
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -108,7 +106,7 @@ class _FeedbackList extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             FilledButton(
-              onPressed: () => ref.invalidate(myFeedbacksProvider),
+              onPressed: () => ref.invalidate(evalHistoryProvider),
               child: Text(s.get('retry')),
             ),
           ],
@@ -125,7 +123,7 @@ class _FeedbackList extends ConsumerWidget {
           onRefresh: () async => ref.invalidate(myFeedbacksProvider),
           child: ListView.builder(
             itemCount: items.length,
-            itemBuilder: (context, i) => _FeedbackTile(feedback: items[i]),
+            itemBuilder: (context, i) => _FeedbackTile(record: items[i]),
           ),
         );
       },
@@ -134,18 +132,31 @@ class _FeedbackList extends ConsumerWidget {
 }
 
 class _FeedbackTile extends ConsumerWidget {
-  final FtFeedback feedback;
-  const _FeedbackTile({required this.feedback});
+  final EvalRecord record;
+  const _FeedbackTile({required this.record});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
-    final dt = feedback.createdAtLocal;
+    final fb = record.feedback;
+    final dt = record.date;
     final date = dt == null
         ? ''
         : '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-    final rating = feedback.rating;
-    final tappable = feedback.isScaleTeam && feedback.feedbackableId != null;
+    final rating = fb.rating;
+    final reviewed = record.iReviewed; // true=I reviewed, false=I was reviewed
+    final counterpart = record.counterpartLogin;
+    final project = record.project;
+    final tappable = counterpart != null;
+
+    // Role chip: green "I reviewed" / orange "I was reviewed" / grey event.
+    final (roleLabel, roleColor) = record.isEvent
+        ? (s.get('eval_type_event'), Colors.blueGrey)
+        : reviewed == true
+            ? (s.get('role_reviewer'), Colors.green)
+            : reviewed == false
+                ? (s.get('role_reviewee'), Colors.orange)
+                : (s.get('eval_type_review'), Colors.grey);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -154,131 +165,74 @@ class _FeedbackTile extends ConsumerWidget {
           radius: 20,
           backgroundColor: _teal.withValues(alpha: 0.15),
           child: Text(
-            rating == null ? '–' : '${rating % 1 == 0 ? rating.toInt() : rating}/5',
+            rating == null
+                ? '–'
+                : '${rating % 1 == 0 ? rating.toInt() : rating}/5',
             style: const TextStyle(
                 color: _teal, fontWeight: FontWeight.bold, fontSize: 12),
           ),
         ),
-        title: Text(
-          feedback.comment?.isNotEmpty == true ? feedback.comment! : '(no comment)',
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: roleColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(roleLabel,
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: roleColor,
+                      fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                project ??
+                    (record.isEvent
+                        ? s.get('eval_type_event')
+                        : s.get('eval_type_review')),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
-        subtitle: Text(
-          [
-            date,
-            feedback.isScaleTeam
-                ? s.get('eval_type_review')
-                : s.get('eval_type_event'),
-          ].where((e) => e.isNotEmpty).join(' · '),
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                if (counterpart != null) ...[
+                  Icon(reviewed == true ? Icons.arrow_forward : Icons.arrow_back,
+                      size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(counterpart, style: const TextStyle(fontSize: 12)),
+                  const SizedBox(width: 8),
+                ],
+                Text(date,
+                    style:
+                        const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+            if (fb.comment?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(fb.comment!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12)),
+              ),
+          ],
         ),
+        isThreeLine: true,
         trailing: tappable
             ? const Icon(Icons.chevron_right, size: 18, color: Colors.grey)
             : null,
-        onTap: tappable
-            ? () => _showFeedbackDetail(context, feedback)
-            : null,
+        onTap: tappable ? () => context.push('/user/$counterpart') : null,
       ),
-    );
-  }
-}
-
-/// Bottom sheet: full feedback comment/rating + the scale_team detail (project,
-/// counterpart, mark) fetched lazily for the tapped feedback.
-void _showFeedbackDetail(BuildContext context, FtFeedback feedback) {
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => Consumer(
-      builder: (context, ref, __) {
-        final s = ref.watch(stringsProvider);
-        final detail = ref.watch(scaleTeamDetailProvider(feedback.feedbackableId!));
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-              20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              detail.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: SizedBox(
-                    height: 18, width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-                error: (_, __) => Text(s.get('detail_failed'),
-                    style: const TextStyle(color: Colors.grey)),
-                data: (team) => _ScaleTeamHeader(team: team),
-              ),
-              const Divider(height: 24),
-              if (feedback.rating != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text('★ ${feedback.rating}/5',
-                      style: const TextStyle(
-                          color: _teal, fontWeight: FontWeight.bold)),
-                ),
-              Text(feedback.comment?.isNotEmpty == true
-                  ? feedback.comment!
-                  : '(no comment)'),
-            ],
-          ),
-        );
-      },
-    ),
-  );
-}
-
-class _ScaleTeamHeader extends StatelessWidget {
-  final ScaleTeam team;
-  const _ScaleTeamHeader({required this.team});
-
-  String? get _counterpart {
-    if (team.correcteds.isNotEmpty) {
-      final c = team.correcteds.first;
-      if (c is Map<String, dynamic>) return c['login'] as String?;
-    }
-    return null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final project = team.team?.name ?? 'project ${team.team?.projectId ?? "?"}';
-    final mark = team.finalMark;
-    final who = _counterpart;
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(project,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16)),
-              if (who != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(who,
-                      style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                ),
-            ],
-          ),
-        ),
-        if (mark != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: mark >= 100 ? Colors.green : Colors.red,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text('$mark',
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-      ],
     );
   }
 }
