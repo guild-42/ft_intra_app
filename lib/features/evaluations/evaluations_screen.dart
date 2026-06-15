@@ -5,8 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/models/scale_team.dart';
+import 'package:ft_intra/core/models/feedback.dart';
+import 'package:ft_intra/core/models/slot.dart';
 import 'package:ft_intra/features/evaluations/slot_block.dart';
-import 'package:ft_intra/shared/widgets/user_avatar.dart';
 
 const _teal = Color(0xFF00BABC);
 
@@ -52,8 +53,8 @@ class EvaluationsScreen extends ConsumerWidget {
                 color: Theme.of(context).scaffoldBackgroundColor,
                 child: TabBar(
                   tabs: [
-                    Tab(text: s.get('reviewer')),
-                    Tab(text: s.get('reviewee')),
+                    Tab(text: s.get('eval_history')),
+                    Tab(text: s.get('eval_schedule')),
                     Tab(text: s.get('my_slots')),
                   ],
                   labelColor: _teal,
@@ -64,8 +65,8 @@ class EvaluationsScreen extends ConsumerWidget {
               const Expanded(
                 child: TabBarView(
                   children: [
-                    _ReviewList(asReviewer: true),
-                    _ReviewList(asReviewer: false),
+                    _FeedbackList(),
+                    _ScheduleList(),
                     _MySlotsTab(),
                   ],
                 ),
@@ -78,17 +79,20 @@ class EvaluationsScreen extends ConsumerWidget {
   }
 }
 
-class _ReviewList extends ConsumerWidget {
-  /// true = reviews I did (corrector), false = reviews I received (corrected).
-  final bool asReviewer;
-  const _ReviewList({required this.asReviewer});
+// ───────────────────── Feedback history (評価履歴) tab ─────────────────────
+//
+// The user's evaluation records live in the `feedbacks` resource (the intra
+// "Feedbacks you made" page), not scale_teams — that /me list is empty for this
+// account. Each row is a feedback the user authored; project name + counterpart
+// live on the referenced scale_team and are fetched only on tap.
+
+class _FeedbackList extends ConsumerWidget {
+  const _FeedbackList();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
-    final provider =
-        asReviewer ? reviewsAsReviewerProvider : reviewsAsRevieweeProvider;
-    final async = ref.watch(provider);
+    final async = ref.watch(myFeedbacksProvider);
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -98,10 +102,13 @@ class _ReviewList extends ConsumerWidget {
           children: [
             const Icon(Icons.error_outline, color: Colors.red, size: 48),
             const SizedBox(height: 12),
-            Text(describeApiError(err), textAlign: TextAlign.center),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(describeApiError(err), textAlign: TextAlign.center),
+            ),
             const SizedBox(height: 12),
             FilledButton(
-              onPressed: () => ref.invalidate(provider),
+              onPressed: () => ref.invalidate(myFeedbacksProvider),
               child: Text(s.get('retry')),
             ),
           ],
@@ -110,18 +117,15 @@ class _ReviewList extends ConsumerWidget {
       data: (items) {
         if (items.isEmpty) {
           return Center(
-            child: Text(s.get('no_reviews'),
+            child: Text(s.get('no_feedbacks'),
                 style: const TextStyle(color: Colors.grey)),
           );
         }
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(provider),
+          onRefresh: () async => ref.invalidate(myFeedbacksProvider),
           child: ListView.builder(
             itemCount: items.length,
-            itemBuilder: (context, i) => _ReviewTile(
-              team: items[i],
-              asReviewer: asReviewer,
-            ),
+            itemBuilder: (context, i) => _FeedbackTile(feedback: items[i]),
           ),
         );
       },
@@ -129,93 +133,239 @@ class _ReviewList extends ConsumerWidget {
   }
 }
 
-class _ReviewTile extends ConsumerWidget {
-  final ScaleTeam team;
-  final bool asReviewer;
-
-  const _ReviewTile({required this.team, required this.asReviewer});
-
-  String _formatDate(String iso) {
-    final dt = DateTime.tryParse(iso);
-    if (dt == null) return iso;
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
-        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
-
-  /// The other party: when I'm the reviewer the counterpart is the reviewee
-  /// (correcteds), and vice-versa.
-  String? _counterpartLogin() {
-    if (asReviewer) {
-      if (team.correcteds.isNotEmpty) {
-        final c = team.correcteds.first;
-        if (c is Map<String, dynamic>) return c['login'] as String?;
-      }
-      return null;
-    }
-    final c = team.corrector;
-    if (c is Map<String, dynamic>) return c['login'] as String?;
-    return null;
-  }
+class _FeedbackTile extends ConsumerWidget {
+  final FtFeedback feedback;
+  const _FeedbackTile({required this.feedback});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(stringsProvider);
-    final counterpart = _counterpartLogin() ?? 'unknown';
-    final projectName = team.team?.name ?? 'project ${team.team?.projectId ?? "?"}';
-    final mark = team.finalMark;
-    final isPast = team.filledAt != null;
+    final dt = feedback.createdAtLocal;
+    final date = dt == null
+        ? ''
+        : '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    final rating = feedback.rating;
+    final tappable = feedback.isScaleTeam && feedback.feedbackableId != null;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: ListTile(
-        onTap: () => context.push('/user/$counterpart'),
-        leading: UserAvatar(login: counterpart, radius: 20),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(projectName,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            if (mark != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: mark >= 100 ? Colors.green : Colors.red,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$mark',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+        leading: CircleAvatar(
+          radius: 20,
+          backgroundColor: _teal.withValues(alpha: 0.15),
+          child: Text(
+            rating == null ? '–' : '${rating % 1 == 0 ? rating.toInt() : rating}/5',
+            style: const TextStyle(
+                color: _teal, fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+        ),
+        title: Text(
+          feedback.comment?.isNotEmpty == true ? feedback.comment! : '(no comment)',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          [
+            date,
+            feedback.isScaleTeam
+                ? s.get('eval_type_review')
+                : s.get('eval_type_event'),
+          ].where((e) => e.isNotEmpty).join(' · '),
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+        trailing: tappable
+            ? const Icon(Icons.chevron_right, size: 18, color: Colors.grey)
+            : null,
+        onTap: tappable
+            ? () => _showFeedbackDetail(context, feedback)
+            : null,
+      ),
+    );
+  }
+}
+
+/// Bottom sheet: full feedback comment/rating + the scale_team detail (project,
+/// counterpart, mark) fetched lazily for the tapped feedback.
+void _showFeedbackDetail(BuildContext context, FtFeedback feedback) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => Consumer(
+      builder: (context, ref, __) {
+        final s = ref.watch(stringsProvider);
+        final detail = ref.watch(scaleTeamDetailProvider(feedback.feedbackableId!));
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              detail.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: SizedBox(
+                    height: 18, width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
+                error: (_, __) => Text(s.get('detail_failed'),
+                    style: const TextStyle(color: Colors.grey)),
+                data: (team) => _ScaleTeamHeader(team: team),
               ),
-          ],
+              const Divider(height: 24),
+              if (feedback.rating != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('★ ${feedback.rating}/5',
+                      style: const TextStyle(
+                          color: _teal, fontWeight: FontWeight.bold)),
+                ),
+              Text(feedback.comment?.isNotEmpty == true
+                  ? feedback.comment!
+                  : '(no comment)'),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _ScaleTeamHeader extends StatelessWidget {
+  final ScaleTeam team;
+  const _ScaleTeamHeader({required this.team});
+
+  String? get _counterpart {
+    if (team.correcteds.isNotEmpty) {
+      final c = team.correcteds.first;
+      if (c is Map<String, dynamic>) return c['login'] as String?;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final project = team.team?.name ?? 'project ${team.team?.projectId ?? "?"}';
+    final mark = team.finalMark;
+    final who = _counterpart;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(project,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16)),
+              if (who != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(who,
+                      style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                ),
+            ],
+          ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        if (mark != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: mark >= 100 ? Colors.green : Colors.red,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text('$mark',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+      ],
+    );
+  }
+}
+
+// ───────────────────── Upcoming review schedule (予定) tab ──────────────────
+
+class _ScheduleList extends ConsumerWidget {
+  const _ScheduleList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(stringsProvider);
+    final async = ref.watch(upcomingSlotsProvider);
+
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, _) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(asReviewer ? Icons.arrow_forward : Icons.arrow_back,
-                    size: 12, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(counterpart, style: const TextStyle(fontSize: 12)),
-              ],
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(describeApiError(err), textAlign: TextAlign.center),
             ),
-            const SizedBox(height: 2),
-            Text(
-              isPast
-                  ? '${s.get('evaluated')}: ${_formatDate(team.filledAt!)}'
-                  : '${s.get('scheduled')}: ${_formatDate(team.beginAt)}',
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => ref.invalidate(mySlotsProvider),
+              child: Text(s.get('retry')),
             ),
           ],
         ),
-        isThreeLine: true,
+      ),
+      data: (slots) {
+        if (slots.isEmpty) {
+          return Center(
+            child: Text(s.get('no_schedule'),
+                style: const TextStyle(color: Colors.grey)),
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: () async => ref.invalidate(mySlotsProvider),
+          child: ListView.builder(
+            itemCount: slots.length,
+            itemBuilder: (context, i) => _ScheduleTile(slot: slots[i]),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ScheduleTile extends ConsumerWidget {
+  final FtSlot slot;
+  const _ScheduleTile({required this.slot});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(stringsProvider);
+    final begin = DateTime.tryParse(slot.beginAt)?.toLocal();
+    final end = DateTime.tryParse(slot.endAt)?.toLocal();
+    final booked = slot.scaleTeam != null;
+    String when = '';
+    if (begin != null) {
+      when = '${begin.year}-${begin.month.toString().padLeft(2, '0')}-'
+          '${begin.day.toString().padLeft(2, '0')} '
+          '${begin.hour.toString().padLeft(2, '0')}:${begin.minute.toString().padLeft(2, '0')}';
+      if (end != null) {
+        when += '–${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
+      }
+    }
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: ListTile(
+        leading: Icon(
+          booked ? Icons.event_available : Icons.event_note,
+          color: booked ? _teal : Colors.grey,
+        ),
+        title: Text(when),
+        trailing: Text(
+          booked ? s.get('slot_booked') : s.get('slot_available'),
+          style: TextStyle(
+            fontSize: 12,
+            color: booked ? _teal : Colors.grey,
+          ),
+        ),
       ),
     );
   }

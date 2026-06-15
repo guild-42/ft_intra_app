@@ -14,6 +14,7 @@ import 'package:ft_intra/core/api/ipv4_http.dart';
 import 'package:ft_intra/core/models/user.dart';
 import 'package:ft_intra/core/models/location.dart';
 import 'package:ft_intra/core/models/scale_team.dart';
+import 'package:ft_intra/core/models/feedback.dart';
 import 'package:ft_intra/core/models/slot.dart';
 import 'package:ft_intra/core/models/campus.dart';
 import 'package:ft_intra/core/notifications/notification_preferences.dart';
@@ -136,97 +137,41 @@ final userDetailProvider =
   return api.getUser(login);
 });
 
-// Fetch every page of a scale_teams endpoint (capped for safety), newest first.
-// [label] tags the verification logs so an empty list can be told apart from a
-// scope/auth problem: a 0-count with no error == the `projects` scope is
-// missing (the endpoint returns an empty array, not a 403).
-Future<List<ScaleTeam>> _fetchAllScaleTeams(
-  String label,
-  Future<List<ScaleTeam>> Function(int page) page,
-) async {
-  final all = <ScaleTeam>[];
-  try {
-    for (var p = 1; p <= 30; p++) {
-      final batch = await page(p);
-      debugPrint('[evals] $label page $p → ${batch.length} item(s)');
-      all.addAll(batch);
-      if (batch.length < 100) break;
-    }
-  } catch (e) {
-    debugPrint('[evals] $label FAILED: $e');
-    rethrow;
+// Evaluation history = the `feedbacks` the user authored (the
+// projects.intra.42.fr "Feedbacks you made" page). NOTE: this account's
+// /me/scale_teams is empty (legacy eval data isn't in the v2 scale_teams /me
+// view), so feedbacks — not scale_teams — is the real source. There is no
+// /me/feedbacks endpoint, so we resolve the user id then filter[user_id].
+final myFeedbacksProvider =
+    FutureProvider.autoDispose<List<FtFeedback>>((ref) async {
+  final dio = ref.watch(dioProvider);
+  final me = await ref.watch(currentUserProvider.future);
+  final all = <FtFeedback>[];
+  for (var p = 1; p <= 20; p++) {
+    final r = await dio.get(
+      'https://api.intra.42.fr/v2/feedbacks',
+      queryParameters: {
+        'filter[user_id]': '${me.id}',
+        'sort': '-created_at',
+        'page[size]': 100,
+        'page[number]': p,
+      },
+    );
+    final batch = (r.data as List).cast<Map<String, dynamic>>();
+    all.addAll(batch.map(FtFeedback.fromJson));
+    if (batch.length < 100) break;
   }
-  all.sort((a, b) => b.beginAt.compareTo(a.beginAt));
-  final past = all.where((t) => t.filledAt != null).length;
-  debugPrint('[evals] $label total=${all.length} (past=$past, upcoming=${all.length - past})'
-      '${all.isEmpty ? "  ← empty: scale_teams needs no scope, so the account has no records in this role" : ""}');
   return all;
-}
-
-// Logs the 42 token's actual granted scopes. scale_teams returns an empty
-// array (HTTP 200, not 403) when `projects` is missing, so this disambiguates
-// "no projects scope" from "account genuinely has no reviews". /oauth/token/info
-// lives outside the /v2 base, so we use the raw (Bearer-injecting) Dio.
-Future<void> _logTokenScopes(Dio dio) async {
-  try {
-    final r = await dio.get('https://api.intra.42.fr/oauth/token/info');
-    final scopes = r.data is Map ? r.data['scopes'] : r.data;
-    debugPrint('[evals] token scopes=$scopes '
-        '${'$scopes'.contains('projects') ? '' : '← `projects` NOT granted (re-login / enable scope in 42 app)'}');
-  } catch (e) {
-    debugPrint('[evals] token scope check failed: $e');
-  }
-  // Decisive check: does the UNFILTERED /me/scale_teams return anything? If it
-  // does while as_corrector/as_corrected are empty, the sub-routes are the
-  // problem (switch to base + partition client-side); if it's also 0, the
-  // account genuinely has no scale_teams. Raw dio avoids a retrofit regen.
-  try {
-    final r = await dio.get('https://api.intra.42.fr/v2/me/scale_teams',
-        queryParameters: {'page[size]': 100});
-    final n = r.data is List ? (r.data as List).length : -1;
-    debugPrint('[evals] base /me/scale_teams (unfiltered) → $n item(s) '
-        '${n > 0 ? "← sub-route issue: data exists but as_corrector/as_corrected are empty" : "← account truly has no scale_teams"}');
-  } catch (e) {
-    debugPrint('[evals] base /me/scale_teams check failed: $e');
-  }
-  // The "Feedbacks you made" page (projects.intra.42.fr/users/:login/feedbacks)
-  // is the `feedbacks` resource, NOT scale_teams. There's no /me/feedbacks, so
-  // fetch /me for the id then /v2/feedbacks?filter[user_id]=. Probe whether this
-  // returns the records the user expects (past evaluations they authored).
-  try {
-    final me = await dio.get('https://api.intra.42.fr/v2/me');
-    final uid = (me.data is Map) ? me.data['id'] : null;
-    final fb = await dio.get('https://api.intra.42.fr/v2/feedbacks',
-        queryParameters: {'filter[user_id]': '$uid', 'page[size]': 100});
-    final list = fb.data is List ? fb.data as List : const [];
-    debugPrint('[evals] feedbacks?filter[user_id]=$uid → ${list.length} item(s)');
-    if (list.isNotEmpty) {
-      final f = list.first as Map;
-      debugPrint('[evals] feedback sample: type=${f['feedbackable_type']} '
-          'rating=${f['rating']} created_at=${f['created_at']} '
-          'comment=${'${f['comment']}'.length > 40 ? '${'${f['comment']}'.substring(0, 40)}…' : f['comment']}');
-    }
-  } catch (e) {
-    debugPrint('[evals] feedbacks probe failed: $e');
-  }
-}
-
-// All reviews where I was the Reviewer (corrector).
-final reviewsAsReviewerProvider =
-    FutureProvider.autoDispose<List<ScaleTeam>>((ref) async {
-  final api = ref.watch(apiClientProvider);
-  final list = await _fetchAllScaleTeams(
-      'as_corrector', (p) => api.getScaleTeamsAsCorrector(page: p, pageSize: 100));
-  if (list.isEmpty) await _logTokenScopes(ref.watch(dioProvider));
-  return list;
 });
 
-// All reviews where I was the Reviewee (corrected).
-final reviewsAsRevieweeProvider =
-    FutureProvider.autoDispose<List<ScaleTeam>>((ref) async {
-  final api = ref.watch(apiClientProvider);
-  return _fetchAllScaleTeams(
-      'as_corrected', (p) => api.getScaleTeamsAsCorrected(page: p, pageSize: 100));
+// Lazy detail for one feedback's scale_team (project name + counterpart),
+// fetched only when a history row is tapped. Individual /v2/scale_teams/:id
+// works even though the /me list is empty. Throws → caller shows a fallback.
+final scaleTeamDetailProvider =
+    FutureProvider.autoDispose.family<ScaleTeam, int>((ref, id) async {
+  final dio = ref.watch(dioProvider);
+  final r = await dio.get('https://api.intra.42.fr/v2/scale_teams/$id');
+  return ScaleTeam.fromJson(r.data as Map<String, dynamic>);
 });
 
 // My evaluation availability slots (own slots; create/delete via ft_api_client).
@@ -236,6 +181,16 @@ final mySlotsProvider = FutureProvider.autoDispose<List<FtSlot>>((ref) async {
   // Soonest first.
   slots.sort((a, b) => a.beginAt.compareTo(b.beginAt));
   return slots;
+});
+
+// Upcoming review schedule = my slots whose start is still in the future,
+// soonest first (booked ones carry a scale_team).
+final upcomingSlotsProvider = FutureProvider.autoDispose<List<FtSlot>>((ref) async {
+  final slots = await ref.watch(mySlotsProvider.future);
+  final now = DateTime.now();
+  return slots
+      .where((s) => (DateTime.tryParse(s.beginAt) ?? now).isAfter(now))
+      .toList();
 });
 
 // Per-type push notification preferences (persisted in SharedPreferences,
