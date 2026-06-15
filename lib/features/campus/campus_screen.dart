@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ft_intra/features/campus/active_users_tab.dart';
 import 'package:ft_intra/features/campus/friends_tab.dart';
-import 'package:ft_intra/features/campus/checkin_tab.dart';
 
 export 'package:ft_intra/features/campus/campus_helpers.dart' show clusterFromHost;
 
@@ -10,8 +9,11 @@ class CampusScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Two tabs: friends and campus presence. Check-in is no longer a separate
+    // tab — geofence check-ins are merged into the presence list, and the
+    // check-in control sits atop that list.
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         body: SafeArea(
           child: Column(
@@ -20,7 +22,6 @@ class CampusScreen extends StatelessWidget {
                 child: TabBar(
                   tabs: [
                     Tab(icon: Icon(Icons.star, size: 20), height: 36),
-                    Tab(icon: Icon(Icons.people, size: 20), height: 36),
                     Tab(icon: Icon(Icons.location_on, size: 20), height: 36),
                   ],
                   labelColor: Color(0xFF00BABC),
@@ -34,7 +35,6 @@ class CampusScreen extends StatelessWidget {
                   children: [
                     FriendsTab(),
                     ActiveUsersTab(),
-                    CheckinTab(),
                   ],
                 ),
               ),

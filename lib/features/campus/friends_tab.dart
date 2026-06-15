@@ -15,6 +15,12 @@ class FriendsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final friendsAsync = ref.watch(friendsStreamProvider);
+    // Friends currently checked in via geofence (no ubuntu login). Used so a
+    // friend who is only checked in still counts as present.
+    final checkedInIds = ref.watch(checkedInIdsProvider).maybeWhen(
+          data: (ids) => ids,
+          orElse: () => const <int>{},
+        );
 
     return Scaffold(
       body: friendsAsync.when(
@@ -45,19 +51,24 @@ class FriendsTab extends ConsumerWidget {
             );
           }
 
-          // Sort: online first, then by login
+          // Present = logged in (cluster) OR checked in. Sort present first.
+          bool present(Friend f) =>
+              f.lastSeenLocation != null || checkedInIds.contains(f.userId);
           final sorted = [...friends];
           sorted.sort((a, b) {
-            final aOnline = a.lastSeenLocation != null;
-            final bOnline = b.lastSeenLocation != null;
-            if (aOnline && !bOnline) return -1;
-            if (!aOnline && bOnline) return 1;
+            final ap = present(a);
+            final bp = present(b);
+            if (ap && !bp) return -1;
+            if (!ap && bp) return 1;
             return a.login.compareTo(b.login);
           });
 
           return ListView.builder(
             itemCount: sorted.length,
-            itemBuilder: (context, i) => _FriendTile(friend: sorted[i]),
+            itemBuilder: (context, i) => _FriendTile(
+              friend: sorted[i],
+              checkedIn: checkedInIds.contains(sorted[i].userId),
+            ),
           );
         },
       ),
@@ -163,7 +174,8 @@ class FriendsTab extends ConsumerWidget {
 
 class _FriendTile extends ConsumerWidget {
   final Friend friend;
-  const _FriendTile({required this.friend});
+  final bool checkedIn;
+  const _FriendTile({required this.friend, this.checkedIn = false});
 
   int? get _blackholeDays {
     if (friend.blackholedAt == null) return null;
@@ -182,7 +194,11 @@ class _FriendTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isOnline = friend.lastSeenLocation != null;
+    final s = ref.watch(stringsProvider);
+    final loggedIn = friend.lastSeenLocation != null;
+    // Present via either source; logged-in shows the cluster, check-in-only
+    // shows the check-in badge.
+    final isOnline = loggedIn || checkedIn;
     final displayLabel = friend.nickname?.isNotEmpty == true
         ? friend.nickname!
         : friend.login;
@@ -247,7 +263,7 @@ class _FriendTile extends ConsumerWidget {
             ),
             Row(
               children: [
-                if (isOnline) ...[
+                if (loggedIn) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                     decoration: BoxDecoration(
@@ -260,6 +276,30 @@ class _FriendTile extends ConsumerWidget {
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           color: Colors.green),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ] else if (checkedIn) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00BABC).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.location_on,
+                            size: 10, color: Color(0xFF00BABC)),
+                        const SizedBox(width: 2),
+                        Text(
+                          s.get('checkin_badge'),
+                          style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF00BABC)),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 6),

@@ -390,3 +390,39 @@ final checkedInUsersProvider =
   final campusId = ref.watch(selectedCampusIdProvider);
   return backend.listCheckins(campusId: campusId);
 });
+
+// One person's campus presence, merged across the two sources. host == null
+// means "checked in via geofence but not logged in at a workstation" — the UI
+// shows a check-in badge instead of a cluster name.
+class CampusPresence {
+  final int userId;
+  final String login;
+  final String? host;
+  const CampusPresence({required this.userId, required this.login, this.host});
+  bool get isCheckinOnly => host == null;
+}
+
+// Merged, de-duplicated campus presence: ubuntu logins (with a cluster host)
+// take priority over geofence check-ins, so anyone both logged in AND checked
+// in shows once, as a login. Check-in-only users are appended.
+final campusPresenceProvider =
+    FutureProvider.autoDispose<List<CampusPresence>>((ref) async {
+  final locations = await ref.watch(campusLocationsProvider.future);
+  final checkins = await ref.watch(checkedInUsersProvider.future);
+  final byId = <int, CampusPresence>{};
+  for (final l in locations) {
+    byId[l.user.id] =
+        CampusPresence(userId: l.user.id, login: l.user.login, host: l.host);
+  }
+  for (final c in checkins) {
+    byId.putIfAbsent(
+        c.userId, () => CampusPresence(userId: c.userId, login: c.login));
+  }
+  return byId.values.toList();
+});
+
+// User ids currently checked in (for friend-list presence cross-reference).
+final checkedInIdsProvider = FutureProvider.autoDispose<Set<int>>((ref) async {
+  final checkins = await ref.watch(checkedInUsersProvider.future);
+  return {for (final c in checkins) c.userId};
+});

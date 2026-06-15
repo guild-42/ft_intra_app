@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:ft_intra/core/providers.dart';
-import 'package:ft_intra/core/models/location.dart';
 import 'package:ft_intra/core/db/app_database.dart';
+import 'package:ft_intra/features/campus/checkin_onboarding_sheet.dart';
 import 'package:ft_intra/shared/widgets/user_avatar.dart';
 import 'package:ft_intra/features/campus/campus_helpers.dart';
+
+const _teal = Color(0xFF00BABC);
 
 class ActiveUsersTab extends ConsumerStatefulWidget {
   const ActiveUsersTab({super.key});
@@ -25,7 +28,9 @@ class _ActiveUsersTabState extends ConsumerState<ActiveUsersTab>
   Widget build(BuildContext context) {
     super.build(context);
     final s = ref.watch(stringsProvider);
-    final locationsAsync = ref.watch(campusLocationsProvider);
+    final presenceAsync = ref.watch(campusPresenceProvider);
+    final enabled = ref.watch(geofenceEnabledProvider);
+    final status = ref.watch(checkinStatusProvider);
     final friendsAsync = ref.watch(friendsStreamProvider);
     final cachedAsync = ref.watch(cachedUsersMapProvider);
     final friends = friendsAsync.maybeWhen(
@@ -39,8 +44,9 @@ class _ActiveUsersTabState extends ConsumerState<ActiveUsersTab>
 
     return Column(
       children: [
+        _ControlCard(enabled: enabled, status: status),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
           child: TextField(
             onChanged: (v) => setState(() => _query = v.toLowerCase()),
             decoration: InputDecoration(
@@ -57,7 +63,7 @@ class _ActiveUsersTabState extends ConsumerState<ActiveUsersTab>
           ),
         ),
         Expanded(
-          child: locationsAsync.when(
+          child: presenceAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (err, _) => Center(
               child: Column(
@@ -68,35 +74,37 @@ class _ActiveUsersTabState extends ConsumerState<ActiveUsersTab>
                   Text('$err', textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: () => ref.invalidate(campusLocationsProvider),
+                    onPressed: () => ref.invalidate(campusPresenceProvider),
                     child: Text(s.get('retry')),
                   ),
                 ],
               ),
             ),
-            data: (locations) {
-              if (locations.isEmpty) {
+            data: (people) {
+              if (people.isEmpty) {
                 return Center(child: Text(s.get('no_one_on_campus')));
               }
 
               final filtered = _query.isEmpty
-                  ? locations
-                  : locations
-                      .where((l) =>
-                          l.user.login.toLowerCase().contains(_query) ||
-                          (cached[l.user.id]?.displayName
+                  ? people
+                  : people
+                      .where((p) =>
+                          p.login.toLowerCase().contains(_query) ||
+                          (cached[p.userId]?.displayName
                                   ?.toLowerCase()
                                   .contains(_query) ??
                               false) ||
-                          (friends[l.user.id]?.nickname
+                          (friends[p.userId]?.nickname
                                   ?.toLowerCase()
                                   .contains(_query) ??
                               false))
                       .toList();
 
               return RefreshIndicator(
-                onRefresh: () async =>
-                    ref.invalidate(campusLocationsProvider),
+                onRefresh: () async {
+                  ref.invalidate(campusLocationsProvider);
+                  ref.invalidate(checkedInUsersProvider);
+                },
                 child: ListView.builder(
                   itemCount: filtered.length + 1,
                   itemBuilder: (context, index) {
@@ -104,17 +112,17 @@ class _ActiveUsersTabState extends ConsumerState<ActiveUsersTab>
                       return Padding(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                         child: Text(
-                          '${locations.length} ${s.get('users_on_campus')}',
+                          '${people.length} ${s.get('users_on_campus')}',
                           style: const TextStyle(
                               color: Colors.grey, fontSize: 13),
                         ),
                       );
                     }
-                    final location = filtered[index - 1];
-                    return _LocationTile(
-                      location: location,
-                      friend: friends[location.user.id],
-                      cached: cached[location.user.id],
+                    final p = filtered[index - 1];
+                    return _PresenceTile(
+                      presence: p,
+                      friend: friends[p.userId],
+                      cached: cached[p.userId],
                     );
                   },
                 ),
@@ -127,32 +135,118 @@ class _ActiveUsersTabState extends ConsumerState<ActiveUsersTab>
   }
 }
 
-class _LocationTile extends ConsumerWidget {
-  final FtLocation location;
-  final Friend? friend;
-  final CachedUser? cached;
+/// Your own check-in status + enable/manual control, atop the presence list
+/// (moved here when the separate check-in tab was removed).
+class _ControlCard extends ConsumerWidget {
+  final bool enabled;
+  final dynamic status;
 
-  const _LocationTile({required this.location, this.friend, this.cached});
+  const _ControlCard({required this.enabled, required this.status});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(stringsProvider);
+    final campusId = ref.watch(selectedCampusIdProvider);
+    final service = ref.read(checkinServiceProvider);
+
+    if (!enabled) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(s.get('checkin_enable_title'),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 6),
+                Text(s.get('checkin_enable_body'),
+                    style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () => CheckinOnboardingSheet.show(context),
+                  icon: const Icon(Icons.location_on, size: 18),
+                  label: Text(s.get('checkin_enable_button')),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final bool isCheckedIn = status.isCheckedIn as bool;
+    final DateTime? since = status.since as DateTime?;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Card(
+        color: isCheckedIn ? _teal.withValues(alpha: 0.12) : null,
+        child: ListTile(
+          dense: true,
+          leading: Icon(
+            isCheckedIn ? Icons.check_circle : Icons.location_searching,
+            color: isCheckedIn ? _teal : Colors.grey,
+          ),
+          title: Text(isCheckedIn
+              ? s.get('checkin_you_are_in')
+              : s.get('checkin_check_in_now')),
+          subtitle: isCheckedIn && since != null
+              ? Text(
+                  '${s.get('checkin_since')} ${DateFormat.Hm().format(since.toLocal())}')
+              : null,
+          trailing: FilledButton(
+            style: isCheckedIn
+                ? FilledButton.styleFrom(backgroundColor: Colors.red)
+                : null,
+            onPressed: () async {
+              if (isCheckedIn) {
+                await service.checkOut(campusId);
+              } else {
+                await service.checkIn(campusId);
+              }
+              await ref.read(checkinStatusProvider.notifier).refresh();
+              ref.invalidate(checkedInUsersProvider);
+            },
+            child: Text(isCheckedIn
+                ? s.get('checkin_check_out')
+                : s.get('checkin_action')),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PresenceTile extends ConsumerWidget {
+  final CampusPresence presence;
+  final Friend? friend;
+  final CachedUser? cached;
+
+  const _PresenceTile({required this.presence, this.friend, this.cached});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(stringsProvider);
     final isFriend = friend != null;
     final imageUrl = friend?.imageUrl ?? cached?.imageUrl;
     final displayName = friend?.nickname?.isNotEmpty == true
         ? friend!.nickname!
-        : (cached?.displayName ?? location.user.login);
-    final cluster = clusterFromHost(location.host);
+        : (cached?.displayName ?? presence.login);
+    // Cluster name when logged in; the check-in badge when only checked in.
+    final label = presence.isCheckinOnly
+        ? s.get('checkin_badge')
+        : clusterFromHost(presence.host!);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      color: isFriend
-          ? const Color(0xFF00BABC).withValues(alpha: 0.15)
-          : null,
+      color: isFriend ? _teal.withValues(alpha: 0.15) : null,
       child: ListTile(
         dense: true,
-        onTap: () => context.push('/user/${location.user.login}'),
+        onTap: () => context.push('/user/${presence.login}'),
         leading: UserAvatar(
-          login: location.user.login,
+          login: presence.login,
           imageUrl: imageUrl,
           radius: 20,
         ),
@@ -167,12 +261,12 @@ class _LocationTile extends ConsumerWidget {
             ),
             if (isFriend) ...[
               const SizedBox(width: 6),
-              const Icon(Icons.star, size: 14, color: Color(0xFF00BABC)),
+              const Icon(Icons.star, size: 14, color: _teal),
             ],
           ],
         ),
         subtitle: Text(
-          '@${location.user.login}',
+          '@${presence.login}',
           style: const TextStyle(fontSize: 11, color: Colors.grey),
         ),
         trailing: Row(
@@ -181,17 +275,29 @@ class _LocationTile extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF00BABC).withValues(alpha: 0.2),
+                color: _teal.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                cluster,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF00BABC),
-                ),
-              ),
+              child: presence.isCheckinOnly
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.location_on, size: 12, color: _teal),
+                        const SizedBox(width: 3),
+                        Text(label,
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: _teal)),
+                      ],
+                    )
+                  : Text(
+                      label,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _teal),
+                    ),
             ),
             IconButton(
               padding: EdgeInsets.zero,
@@ -199,17 +305,17 @@ class _LocationTile extends ConsumerWidget {
               icon: Icon(
                 isFriend ? Icons.person_remove : Icons.person_add,
                 size: 18,
-                color: isFriend ? Colors.red : const Color(0xFF00BABC),
+                color: isFriend ? Colors.red : _teal,
               ),
               onPressed: () async {
                 final db = ref.read(databaseProvider);
                 if (isFriend) {
-                  await db.removeFriend(location.user.id);
+                  await db.removeFriend(presence.userId);
                 } else {
                   try {
                     final user = await ref
                         .read(apiClientProvider)
-                        .getUser(location.user.login);
+                        .getUser(presence.login);
                     final mainCursus = user.cursusUsers.firstWhere(
                       (c) => c.cursus?.slug == '42cursus',
                       orElse: () => user.cursusUsers.isNotEmpty
@@ -220,14 +326,15 @@ class _LocationTile extends ConsumerWidget {
                       userId: user.id,
                       login: user.login,
                       displayName: user.displayName,
-                      imageUrl: user.image?.versions?.medium ?? user.image?.link,
+                      imageUrl:
+                          user.image?.versions?.medium ?? user.image?.link,
                       level: mainCursus.level,
                       blackholedAt: mainCursus.blackholedAt,
                     );
                   } catch (_) {
                     await db.addFriend(
-                      userId: location.user.id,
-                      login: location.user.login,
+                      userId: presence.userId,
+                      login: presence.login,
                     );
                   }
                 }

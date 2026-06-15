@@ -146,6 +146,7 @@ class AppStrings {
     'checkin_check_out': 'Check out',
     'checkin_none': 'No one checked in',
     'checkin_on_campus': 'checked in',
+    'checkin_badge': 'Check-in',
     'checkin_since': 'since',
     'checkin_perm_needed':
         'Notifications and always-on location are required.',
@@ -277,6 +278,7 @@ class AppStrings {
     'checkin_check_out': 'チェックアウト',
     'checkin_none': 'チェックイン中の人はいません',
     'checkin_on_campus': '人がチェックイン中',
+    'checkin_badge': 'チェックイン',
     'checkin_since': '開始',
     'checkin_perm_needed': '通知と「常に許可」の位置情報が必要です。',
     'checkin_open_settings': '設定を開く',
