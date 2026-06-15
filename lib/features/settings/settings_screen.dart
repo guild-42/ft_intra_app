@@ -7,6 +7,7 @@ import 'package:ft_intra/core/notifications/notification_preferences.dart';
 import 'package:ft_intra/core/notifications/notification_optin.dart';
 import 'package:ft_intra/core/notifications/fcm_service.dart';
 import 'package:ft_intra/core/checkin/checkin_permissions.dart';
+import 'package:ft_intra/core/checkin/checkin_notifications.dart';
 import 'package:ft_intra/features/settings/consent_dialog.dart';
 import 'package:ft_intra/l10n/strings.dart';
 
@@ -134,6 +135,12 @@ class SettingsScreen extends ConsumerWidget {
               title: const Text('Poll intra now'),
               subtitle: const Text("Don't wait 5 min, fetch right now"),
               onTap: () => _post(context, ref, '/api/poll-now'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.location_on, color: Colors.purple),
+              title: const Text('Test check-in prompt'),
+              subtitle: const Text('Fire the geofence-arrival notification now'),
+              onTap: () => showCheckinPrompt(ref.read(selectedCampusIdProvider)),
             ),
             const Divider(),
             ListTile(
