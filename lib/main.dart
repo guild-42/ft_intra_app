@@ -2,8 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ft_intra/config/constants.dart';
 import 'package:ft_intra/config/router.dart';
 import 'package:ft_intra/config/theme.dart';
 import 'package:ft_intra/core/checkin/checkin_service.dart';
@@ -30,17 +28,10 @@ void main() async {
     }
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final enabled = prefs.getBool('checkin_geofence_enabled') ?? false;
-      final campusId =
-          prefs.getInt('selected_campus_id') ?? FtConstants.campusIdTokyo;
-      final service = CheckinService();
-      // Re-register the geofence if relaunch/reboot dropped it, then replay any
-      // check-in/out POST that failed in the background isolate.
-      await service.reconcileGeofence(enabled: enabled, campusId: campusId);
-      await service.syncPending();
+      // Replay any manual check-in/out POST that failed offline.
+      await CheckinService().syncPending();
     } catch (e) {
-      debugPrint('Checkin init failed: $e');
+      debugPrint('Checkin sync failed: $e');
     }
   }
 

@@ -6,7 +6,6 @@ import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/notifications/notification_preferences.dart';
 import 'package:ft_intra/core/notifications/notification_optin.dart';
 import 'package:ft_intra/core/notifications/fcm_service.dart';
-import 'package:ft_intra/core/checkin/checkin_permissions.dart';
 import 'package:ft_intra/features/settings/consent_dialog.dart';
 import 'package:ft_intra/l10n/strings.dart';
 
@@ -84,9 +83,6 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const Divider(),
-            _SectionHeader(title: s.get('checkin_enable_title')),
-            const _CheckinSettings(),
             const Divider(),
             _SectionHeader(title: s.get('notifications')),
             const _CookieMasterToggle(),
@@ -354,77 +350,6 @@ class _ServerDataSection extends ConsumerWidget {
     }
     messenger.showSnackBar(
         SnackBar(content: Text(ok ? s.get('notif_deleted') : 'Error')));
-  }
-}
-
-class _CheckinSettings extends ConsumerWidget {
-  const _CheckinSettings();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(stringsProvider);
-    final enabled = ref.watch(geofenceEnabledProvider);
-    final userAsync = ref.watch(currentUserProvider);
-
-    return Column(
-      children: [
-        SwitchListTile(
-          secondary: const Icon(Icons.location_on),
-          title: Text(s.get('checkin_enable_title')),
-          subtitle: Text(
-            s.get('checkin_enable_body'),
-            style: const TextStyle(fontSize: 11),
-          ),
-          value: enabled,
-          activeColor: const Color(0xFF00BABC),
-          onChanged: (enable) async {
-            final messenger = ScaffoldMessenger.of(context);
-            final campusId = ref.read(selectedCampusIdProvider);
-            final service = ref.read(checkinServiceProvider);
-            final notifier = ref.read(geofenceEnabledProvider.notifier);
-
-            if (enable) {
-              final result = await CheckinPermissions.requestAll();
-              if (result != CheckinPermissionResult.granted) {
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(s.get('checkin_perm_needed')),
-                    action: SnackBarAction(
-                      label: s.get('checkin_open_settings'),
-                      onPressed: CheckinPermissions.openSettings,
-                    ),
-                  ),
-                );
-                return;
-              }
-              await service.enableGeofencing(campusId);
-              await notifier.setEnabled(true);
-            } else {
-              await service.disableGeofencing(campusId);
-              await notifier.setEnabled(false);
-            }
-          },
-        ),
-        // Verified 42 identity used for check-in (read-only — anti-impersonation
-        // comes from the OAuth token, never a manually entered ID).
-        ListTile(
-          leading: const Icon(Icons.badge_outlined),
-          title: const Text('Intra ID'),
-          trailing: userAsync.when(
-            loading: () => const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            error: (_, __) => const Text('—', style: TextStyle(color: Colors.grey)),
-            data: (user) => Text(
-              user.login,
-              style: const TextStyle(color: Colors.grey),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }
 

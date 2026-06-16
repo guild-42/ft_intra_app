@@ -39,15 +39,10 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Lets the app check you in/out automatically when you arrive at or leave your 42 campus, even when the app is closed.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Used to check you in when you arrive at your 42 campus.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>remote-notification</string>
 	</array>
 	<key>UILaunchStoryboardName</key>

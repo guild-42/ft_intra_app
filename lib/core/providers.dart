@@ -341,30 +341,6 @@ final stringsProvider = Provider<AppStrings>((ref) {
 
 final checkinServiceProvider = Provider<CheckinService>((_) => CheckinService());
 
-final geofenceEnabledProvider =
-    StateNotifierProvider<GeofenceEnabledNotifier, bool>((ref) {
-  return GeofenceEnabledNotifier();
-});
-
-class GeofenceEnabledNotifier extends StateNotifier<bool> {
-  GeofenceEnabledNotifier() : super(false) {
-    _load();
-  }
-
-  static const _key = 'checkin_geofence_enabled';
-
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    state = prefs.getBool(_key) ?? false;
-  }
-
-  Future<void> setEnabled(bool enabled) async {
-    state = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_key, enabled);
-  }
-}
-
 // Local check-in snapshot for the current user (optimistic mirror of backend).
 final checkinStatusProvider =
     StateNotifierProvider<CheckinStatusNotifier, CheckinSnapshot>((ref) {

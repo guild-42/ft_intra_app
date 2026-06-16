@@ -1,8 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:ft_intra/core/checkin/checkin_notifications.dart';
-import 'package:ft_intra/core/checkin/geofence_callbacks.dart';
 import 'package:ft_intra/core/notifications/notification_router.dart';
 
 class FcmService {
@@ -31,19 +29,14 @@ class FcmService {
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       iOS: DarwinInitializationSettings(),
     );
-    await _localNotifs.initialize(initSettings);
-
-    // Registered last so its background action handler wins (the FCM init above
-    // passes none). Drives the location check-in "Check in" notification action.
-    // The foreground wrapper also routes taps on locally re-shown FCM
-    // notifications (the plugin allows only one tap handler per isolate).
-    await initCheckinNotifications(
-      onForeground: (response) {
-        checkinNotificationForegroundHandler(response);
+    // Tapping a foreground notification (re-shown below) carries a `route:`
+    // payload — route to the matching screen.
+    await _localNotifs.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (response) {
         final route = routeFromPayload(response.payload);
         if (route != null) _onNavigate?.call(route);
       },
-      onBackground: checkinNotificationBackgroundHandler,
     );
 
     FirebaseMessaging.onMessage.listen(_handleForeground);

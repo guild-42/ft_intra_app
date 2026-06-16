@@ -1,20 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-/// Geofence center + radius for a campus, used by the location-based check-in.
-class CampusGeo {
-  final int campusId;
-  final double lat;
-  final double lng;
-  final double radiusMeters;
-
-  const CampusGeo({
-    required this.campusId,
-    required this.lat,
-    required this.lng,
-    required this.radiusMeters,
-  });
-}
-
 class FtConstants {
   FtConstants._();
 
@@ -33,24 +18,6 @@ class FtConstants {
   static String get redirectUri => kIsWeb ? redirectUriWeb : redirectUriMobile;
 
   static const int campusIdTokyo = 26;
-
-  // Location-based check-in: campus geofence centers/radius. 42 Tokyo is in
-  // 六本木ヒルズ森タワー; these coords are approximate and should be fine-tuned
-  // against on-device GPS readings. Radius is generous to cover the building.
-  static const double campusTokyoLat = 35.6604;
-  static const double campusTokyoLng = 139.7292;
-  static const double campusCheckinRadiusMeters = 250;
-
-  static const Map<int, CampusGeo> campusGeos = {
-    campusIdTokyo: CampusGeo(
-      campusId: campusIdTokyo,
-      lat: campusTokyoLat,
-      lng: campusTokyoLng,
-      radiusMeters: campusCheckinRadiusMeters,
-    ),
-  };
-
-  static CampusGeo? campusGeo(int campusId) => campusGeos[campusId];
 
   static const int rateLimitPerSecond = 2;
   static const int rateLimitPerHour = 1200;
