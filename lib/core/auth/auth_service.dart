@@ -100,5 +100,9 @@ class AuthService {
 
   Future<bool> isLoggedIn() => _tokenStorage.hasValidToken();
 
+  /// Cold-start routing: a stored token (even if expired) → restore session;
+  /// the interceptor refreshes on the first 401.
+  Future<bool> hasToken() => _tokenStorage.hasToken();
+
   Future<void> logout() => _tokenStorage.clearTokens();
 }

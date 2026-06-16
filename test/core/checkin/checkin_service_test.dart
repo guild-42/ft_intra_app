@@ -45,11 +45,11 @@ class _FakeTokenStorage implements TokenStorage {
   @override
   Future<String?> getClientId() async => null;
   @override
-  Future<void> saveClientId(String clientId) async {}
-  @override
   Future<void> saveTokens({required String accessToken, String? refreshToken, int? expiresIn}) async {}
   @override
   Future<bool> hasValidToken() async => token != null;
+  @override
+  Future<bool> hasToken() async => token != null;
   @override
   Future<void> clearTokens() async {}
 }

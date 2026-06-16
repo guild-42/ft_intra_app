@@ -17,6 +17,12 @@ abstract class TokenStorage {
   Future<String?> getClientId();
   Future<void> saveTokens({required String accessToken, String? refreshToken, int? expiresIn});
   Future<bool> hasValidToken();
+
+  /// True if any access token is stored, regardless of expiry. Cold-start
+  /// routing uses this (not hasValidToken): an expired-but-refreshable token
+  /// should still land on the dashboard — the auth interceptor refreshes on the
+  /// first 401.
+  Future<bool> hasToken();
   Future<void> clearTokens();
 }
 
@@ -60,6 +66,10 @@ class _WebTokenStorage implements TokenStorage {
     if (expiresAt == null) return true;
     return DateTime.now().isBefore(expiresAt);
   }
+
+  @override
+  Future<bool> hasToken() async =>
+      (await SharedPreferences.getInstance()).getString(_keyAccessToken) != null;
 
   @override
   Future<void> clearTokens() async {
@@ -114,6 +124,9 @@ class _NativeTokenStorage implements TokenStorage {
     if (expiresAt == null) return true;
     return DateTime.now().isBefore(expiresAt);
   }
+
+  @override
+  Future<bool> hasToken() async => (await getAccessToken()) != null;
 
   @override
   Future<void> clearTokens() async {
