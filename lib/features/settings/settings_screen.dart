@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/notifications/notification_preferences.dart';
 import 'package:ft_intra/core/notifications/notification_optin.dart';
@@ -114,10 +115,32 @@ class SettingsScreen extends ConsumerWidget {
             _SectionHeader(title: s.get('notif_my_server_data')),
             const _ServerDataSection(),
             const Divider(),
+            const ListTile(
+              leading: Icon(Icons.info_outline),
+              title: Text('ft_intra'),
+              subtitle: Text(
+                'v1.0.0 · Unofficial app by the Guild42 community.\n'
+                'Not affiliated with or endorsed by École 42.',
+              ),
+              isThreeLine: true,
+            ),
             ListTile(
-              leading: const Icon(Icons.info_outline),
+              leading: const Icon(Icons.public),
               title: Text(s.get('about')),
-              subtitle: const Text('ft_intra v0.1.0'),
+              subtitle: const Text('ft-intra.guild42.net'),
+              onTap: () => launchUrl(
+                Uri.parse('https://ft-intra.guild42.net'),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: Text(s.get('consent_title')),
+              subtitle: const Text('ft-intra.guild42.net/privacy'),
+              onTap: () => launchUrl(
+                Uri.parse('https://ft-intra.guild42.net/privacy'),
+                mode: LaunchMode.externalApplication,
+              ),
             ),
             ListTile(
               leading: Icon(demo ? Icons.close : Icons.logout, color: Colors.red),
