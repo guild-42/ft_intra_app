@@ -21,10 +21,12 @@ class BackendClient {
     return dio;
   }
 
+  /// Register the device for notifications. [accessToken] is sent only so the
+  /// backend can verify identity (GET /v2/me); it is NOT stored server-side —
+  /// the 42 token never leaves the device (doc_v2/10). No cookie is sent.
   Future<bool> register({
     required String accessToken,
     required String fcmToken,
-    required String cookie,
     required String platform,
     required String language,
     bool prefEvalpo = true,
@@ -32,7 +34,6 @@ class BackendClient {
     bool prefReview = true,
     bool prefFriend = true,
     List<int> friendWatchIds = const [],
-    String? refreshToken,
     String? consentVersion,
     DateTime? consentedAt,
   }) async {
@@ -44,13 +45,11 @@ class BackendClient {
           'platform': platform,
           'language': language,
           'access_token': accessToken,
-          'cookie': cookie,
           'pref_evalpo': prefEvalpo,
           'pref_event': prefEvent,
           'pref_review': prefReview,
           'pref_friend': prefFriend,
           'friend_watch_ids': friendWatchIds,
-          if (refreshToken != null) 'refresh_token': refreshToken,
           if (consentVersion != null) 'consent_version': consentVersion,
           if (consentedAt != null) 'consented_at': consentedAt.toIso8601String(),
         },
@@ -61,13 +60,35 @@ class BackendClient {
     }
   }
 
-  /// Delete a stored credential from the server. [type] is `cookie` or `token`.
-  /// [accessToken] proves device ownership: the backend verifies it against
-  /// /v2/me and only deletes when the verified 42 user owns [fcmToken]'s device
-  /// (anti-IDOR). Removes that user's cookie, or clears the device's OAuth token.
+  /// Event-notification history the server pushed (public campus events). The
+  /// returned maps have `title`, `body`, `source_date`, `signature`.
+  Future<List<Map<String, dynamic>>> listNotifications({
+    int page = 1,
+    int perPage = 50,
+  }) async {
+    try {
+      final resp = await _dio.get(
+        '${FtConstants.backendBaseUrl}/api/notifications',
+        queryParameters: {'page': page, 'per_page': perPage},
+      );
+      final data = resp.data;
+      final items = (data is Map && data['items'] is List)
+          ? data['items'] as List
+          : const [];
+      return items
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Delete the caller's server-side registration (device doc). [accessToken]
+  /// proves device ownership: the backend verifies it against /v2/me and only
+  /// deletes when the verified 42 user owns [fcmToken]'s device (anti-IDOR).
   Future<bool> deleteCredential({
     required String fcmToken,
-    required String type,
     required String accessToken,
   }) async {
     try {
@@ -75,7 +96,6 @@ class BackendClient {
         '${FtConstants.backendBaseUrl}/api/credentials',
         data: {
           'fcm_token': fcmToken,
-          'type': type,
           'access_token': accessToken,
         },
       );
@@ -84,7 +104,7 @@ class BackendClient {
       // Don't swallow silently: the UI only shows a generic "failed" snackbar,
       // so without this the real cause is invisible. 404 = endpoint not deployed,
       // 422 = body stripped in transit, 401 = access_token invalid/expired.
-      debugPrint('deleteCredential($type) failed: $e');
+      debugPrint('deleteCredential failed: $e');
       if (e is DioException) {
         debugPrint('  type=${e.type} status=${e.response?.statusCode} '
             'data=${e.response?.data}');

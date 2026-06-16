@@ -20,7 +20,6 @@ import 'package:ft_intra/core/models/campus.dart';
 import 'package:ft_intra/core/notifications/notification_preferences.dart';
 import 'package:ft_intra/config/constants.dart';
 import 'package:ft_intra/core/db/app_database.dart';
-import 'package:ft_intra/core/notifications/notification_scraper.dart';
 import 'package:ft_intra/core/friends/friend_watcher.dart';
 import 'package:ft_intra/core/users/user_cache_service.dart';
 import 'package:ft_intra/core/checkin/checkin_service.dart';
@@ -294,11 +293,6 @@ final databaseProvider = Provider<AppDatabase>((_) => AppDatabase());
 
 // Backend
 final backendClientProvider = Provider<BackendClient>((_) => BackendClient());
-
-// Notification scraper
-final notificationScraperProvider = Provider<NotificationScraper>(
-  (_) => NotificationScraper(),
-);
 
 // Watch notifications from local DB
 final notificationsStreamProvider = StreamProvider<List<IntraNotification>>((ref) {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/modules/notifications/notifications.dart';
 
@@ -18,19 +17,21 @@ class NotificationsScreen extends ConsumerWidget {
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (items) {
           if (items.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.notifications_none, size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text('No notifications yet',
-                      style: TextStyle(color: Colors.grey, fontSize: 16)),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () => context.push('/cookie-login'),
-                    icon: const Icon(Icons.login),
-                    label: const Text('Login to Intra to fetch notifications'),
+            return RefreshIndicator(
+              onRefresh: () => _refresh(ref),
+              child: ListView(
+                children: const [
+                  SizedBox(height: 160),
+                  Icon(Icons.notifications_none, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Center(
+                    child: Text('No notifications yet',
+                        style: TextStyle(color: Colors.grey, fontSize: 16)),
+                  ),
+                  SizedBox(height: 8),
+                  Center(
+                    child: Text('Pull down to refresh',
+                        style: TextStyle(color: Colors.grey, fontSize: 13)),
                   ),
                 ],
               ),
@@ -45,18 +46,8 @@ class NotificationsScreen extends ConsumerWidget {
                 if (index == 0) {
                   return Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('${items.length} notifications',
-                            style: const TextStyle(color: Colors.grey)),
-                        TextButton.icon(
-                          onPressed: () => context.push('/cookie-login'),
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('Refresh'),
-                        ),
-                      ],
-                    ),
+                    child: Text('${items.length} notifications',
+                        style: const TextStyle(color: Colors.grey)),
                   );
                 }
 
@@ -72,7 +63,7 @@ class NotificationsScreen extends ConsumerWidget {
   }
 
   Future<void> _refresh(WidgetRef ref) async {
-    await ref.read(notificationsRepositoryProvider).refreshFromCookie();
+    await ref.read(notificationsRepositoryProvider).refreshFromBackend();
   }
 }
 

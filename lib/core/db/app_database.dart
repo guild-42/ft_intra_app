@@ -13,6 +13,9 @@ class IntraNotifications extends Table {
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();
 }
 
+/// DEPRECATED (doc_v2/10): cookie scraping was removed for 42-ToS compliance.
+/// The table is kept defined-but-unused so we don't have to run a destructive
+/// migration / bump schemaVersion. No code reads or writes it.
 class CookieStore extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get cookie => text()();
@@ -144,31 +147,6 @@ class AppDatabase extends _$AppDatabase {
     final query = selectOnly(intraNotifications)..addColumns([count]);
     final row = await query.getSingle();
     return row.read(count) ?? 0;
-  }
-
-  // --- Cookie ---
-
-  Future<String?> getValidCookie() async {
-    final query = select(cookieStore)
-      ..where((t) => t.isValid.equals(true))
-      ..orderBy([(t) => OrderingTerm.desc(t.providedAt)])
-      ..limit(1);
-    final row = await query.getSingleOrNull();
-    return row?.cookie;
-  }
-
-  Future<void> saveCookie(String cookie) async {
-    await into(cookieStore).insert(
-      CookieStoreCompanion.insert(
-        cookie: cookie,
-        expiresAt: Value(DateTime.now().add(const Duration(days: 14))),
-      ),
-    );
-  }
-
-  Future<void> invalidateCookie(String cookie) async {
-    await (update(cookieStore)..where((t) => t.cookie.equals(cookie)))
-        .write(const CookieStoreCompanion(isValid: Value(false)));
   }
 
   // --- Friends ---

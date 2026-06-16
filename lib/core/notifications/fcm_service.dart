@@ -1,7 +1,26 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:ft_intra/core/notifications/eval_fetcher.dart';
 import 'package:ft_intra/core/notifications/notification_router.dart';
+import 'package:ft_intra/firebase_options.dart';
+
+/// Background isolate handler for data-only pushes (the eval "alarm clock").
+/// Must be a top-level function annotated for AOT entry. The isolate is fresh,
+/// so Firebase must be initialized here before doing any work.
+@pragma('vm:entry-point')
+Future<void> ftFirebaseBackgroundHandler(RemoteMessage message) async {
+  if (message.data['type'] != 'eval_wake') return;
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (_) {
+    // Already initialized in this isolate, or init failed — fetch may still work.
+  }
+  await EvalFetcher.fetchAndNotify();
+}
 
 class FcmService {
   static final FlutterLocalNotificationsPlugin _localNotifs =
@@ -18,6 +37,10 @@ class FcmService {
     _onNavigate = onNavigate;
 
     final messaging = FirebaseMessaging.instance;
+
+    // Data-only `eval_wake` pushes arriving while the app is backgrounded /
+    // terminated are handled in a separate isolate (top-level handler).
+    FirebaseMessaging.onBackgroundMessage(ftFirebaseBackgroundHandler);
 
     await messaging.requestPermission(
       alert: true,
@@ -77,6 +100,11 @@ class FcmService {
   }
 
   static void _handleForeground(RemoteMessage message) {
+    // Data-only eval wake: fetch our own /me data and post a local notification.
+    if (message.data['type'] == 'eval_wake') {
+      EvalFetcher.fetchAndNotify();
+      return;
+    }
     final notification = message.notification;
     if (notification == null) return;
 

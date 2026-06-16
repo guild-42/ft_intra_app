@@ -4,11 +4,9 @@ import 'package:ft_intra/features/auth/splash_screen.dart';
 import 'package:ft_intra/features/onboarding/intro_screen.dart';
 import 'package:ft_intra/features/auth/login_screen.dart';
 import 'package:ft_intra/features/auth/callback_screen.dart';
-import 'package:ft_intra/features/auth/oauth_webview_screen.dart';
 import 'package:ft_intra/features/dashboard/dashboard_screen.dart';
 import 'package:ft_intra/features/dashboard/project_detail_screen.dart';
 import 'package:ft_intra/features/notifications/notifications_screen.dart';
-import 'package:ft_intra/features/notifications/cookie_webview_screen.dart';
 import 'package:ft_intra/features/campus/campus_screen.dart';
 import 'package:ft_intra/features/campus/user_profile_screen.dart';
 import 'package:ft_intra/features/campus/user_detail_screen.dart';
@@ -56,14 +54,6 @@ final routerConfig = GoRouter(
         final code = state.uri.queryParameters['code'];
         return CallbackScreen(code: code);
       },
-    ),
-    GoRoute(
-      path: '/cookie-login',
-      builder: (context, state) => const CookieWebViewScreen(),
-    ),
-    GoRoute(
-      path: '/oauth',
-      builder: (context, state) => const OAuthWebViewScreen(),
     ),
     GoRoute(
       path: '/user/:login',

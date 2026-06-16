@@ -3,16 +3,15 @@ import 'package:ft_intra/l10n/strings.dart';
 
 const _teal = Color(0xFF00BABC);
 
-/// Consent dialog shown before sending a credential to the backend.
+/// Consent dialog shown before enabling server-side notifications.
 ///
-/// [forToken] true = the OAuth token (review notifications); false = the intra
-/// cookie (event / friend / evalpo notifications). The "what is stored" line is
-/// swapped accordingly. Returns true only if the user explicitly agreed.
+/// No 42 credential is sent to the server: the device is registered with its
+/// FCM token + preferences only, and the 42 token stays on the device
+/// (doc_v2/10). Returns true only if the user explicitly agreed.
 Future<bool> showConsentDialog(
   BuildContext context,
-  AppStrings s, {
-  required bool forToken,
-}) async {
+  AppStrings s,
+) async {
   final agreed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
@@ -24,13 +23,8 @@ Future<bool> showConsentDialog(
           children: [
             _Para(Icons.notifications_active, s.get('consent_benefit')),
             _Para(Icons.help_outline, s.get('consent_why')),
-            _Para(
-              Icons.cloud_upload_outlined,
-              s.get(forToken ? 'consent_stored_token' : 'consent_stored_cookie'),
-            ),
+            _Para(Icons.cloud_upload_outlined, s.get('consent_stored_device')),
             _Para(Icons.lock_outline, s.get('consent_usage_limit')),
-            _Para(Icons.warning_amber_outlined, s.get('consent_risk'),
-                color: Colors.orange.shade800),
             _Para(Icons.tune, s.get('consent_control')),
           ],
         ),
@@ -54,8 +48,7 @@ Future<bool> showConsentDialog(
 class _Para extends StatelessWidget {
   final IconData icon;
   final String text;
-  final Color? color;
-  const _Para(this.icon, this.text, {this.color});
+  const _Para(this.icon, this.text);
 
   @override
   Widget build(BuildContext context) {
@@ -64,11 +57,11 @@ class _Para extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: color ?? _teal),
+          Icon(icon, size: 18, color: _teal),
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: TextStyle(fontSize: 13, height: 1.35, color: color)),
+                style: const TextStyle(fontSize: 13, height: 1.35)),
           ),
         ],
       ),
