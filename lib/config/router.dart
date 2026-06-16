@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/models/user.dart';
 import 'package:ft_intra/features/auth/splash_screen.dart';
+import 'package:ft_intra/features/onboarding/intro_screen.dart';
 import 'package:ft_intra/features/auth/login_screen.dart';
 import 'package:ft_intra/features/auth/callback_screen.dart';
 import 'package:ft_intra/features/auth/oauth_webview_screen.dart';
@@ -33,6 +34,10 @@ final routerConfig = GoRouter(
     GoRoute(
       path: '/',
       builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/intro',
+      builder: (context, state) => const IntroScreen(),
     ),
     GoRoute(
       path: '/login',

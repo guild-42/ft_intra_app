@@ -12,7 +12,8 @@ void main() {
     // Splash decides on cold start by reading the token store. Use the web
     // (SharedPreferences-backed) store with no tokens so the decision is
     // deterministic without the secure-storage platform channel.
-    SharedPreferences.setMockInitialValues({});
+    // seen_intro=true so splash skips the intro and makes the token decision.
+    SharedPreferences.setMockInitialValues({'seen_intro': true});
     await tester.pumpWidget(
       ProviderScope(
         overrides: [tokenStorageProvider.overrideWithValue(TokenStorage.web())],

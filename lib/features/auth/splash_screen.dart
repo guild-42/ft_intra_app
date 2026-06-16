@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
+import 'package:ft_intra/core/prefs/prefs_store.dart';
 
 /// Cold-start decision screen (router initialLocation '/'). Restores the
 /// session if a token is stored, otherwise shows login. Routing on token
@@ -22,6 +23,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _decide() async {
+    final seenIntro =
+        await ref.read(prefsStoreProvider).getBool(PrefsKeys.seenIntro) ?? false;
+    if (!mounted) return;
+    if (!seenIntro) {
+      context.go('/intro');
+      return;
+    }
     final hasToken = await ref.read(authServiceProvider).hasToken();
     if (!mounted) return;
     context.go(hasToken ? '/dashboard' : '/login');

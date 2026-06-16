@@ -12,7 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PrefsKeys {
   static const selectedCampusId = 'selected_campus_id';
   static const appLocale = 'app_locale';
-  static const checkinGeofenceEnabled = 'checkin_geofence_enabled';
+  static const seenIntro = 'seen_intro';
 }
 
 class PrefsStore {

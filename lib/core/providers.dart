@@ -26,6 +26,8 @@ import 'package:ft_intra/core/users/user_cache_service.dart';
 import 'package:ft_intra/core/checkin/checkin_service.dart';
 import 'package:ft_intra/core/checkin/checkin_state.dart';
 import 'package:ft_intra/core/checkin/checkin_models.dart';
+import 'package:ft_intra/core/demo/demo_mode.dart';
+import 'package:ft_intra/core/demo/demo_data.dart';
 import 'package:ft_intra/l10n/strings.dart';
 
 final tokenStorageProvider = Provider<TokenStorage>(
@@ -55,11 +57,13 @@ final apiClientProvider = Provider<FtApiClient>((ref) {
 });
 
 final currentUserProvider = FutureProvider<FtUser>((ref) async {
+  if (ref.watch(demoModeProvider)) return DemoData.user;
   final api = ref.watch(apiClientProvider);
   return api.getMe();
 });
 
 final allCampusesProvider = FutureProvider<List<FtCampus>>((ref) async {
+  if (ref.watch(demoModeProvider)) return DemoData.campuses;
   final api = ref.watch(apiClientProvider);
   final list = await api.getCampuses();
   list.sort((a, b) => a.name.compareTo(b.name));
@@ -133,6 +137,7 @@ final cachedUsersMapProvider = StreamProvider<Map<int, CachedUser>>((ref) {
 
 final userDetailProvider =
     FutureProvider.family<FtUser, String>((ref, login) async {
+  if (ref.watch(demoModeProvider)) return DemoData.user;
   // Tapping yourself in the campus list shouldn't trigger a second heavy
   // /users/:login fetch — /me (already warmed at startup) is the same user and
   // is richer. Reuse it so self-detail opens instantly.
@@ -149,6 +154,7 @@ final userDetailProvider =
 // /me/feedbacks endpoint, so we resolve the user id then filter[user_id].
 final myFeedbacksProvider =
     FutureProvider.autoDispose<List<FtFeedback>>((ref) async {
+  if (ref.watch(demoModeProvider)) return DemoData.feedbacks;
   final dio = ref.watch(dioProvider);
   final me = await ref.watch(currentUserProvider.future);
   final all = <FtFeedback>[];
@@ -217,6 +223,12 @@ class EvalRecord {
 // rows still render with rating/comment/date.
 final evalHistoryProvider =
     FutureProvider.autoDispose<List<EvalRecord>>((ref) async {
+  if (ref.watch(demoModeProvider)) {
+    return DemoData.feedbacks
+        .map((f) => EvalRecord(
+            f, DemoData.scaleTeams[f.feedbackableId], DemoData.user.id))
+        .toList();
+  }
   final dio = ref.watch(dioProvider);
   final me = await ref.watch(currentUserProvider.future);
   final feedbacks = await ref.watch(myFeedbacksProvider.future);
@@ -252,6 +264,7 @@ final evalHistoryProvider =
 
 // My evaluation availability slots (own slots; create/delete via ft_api_client).
 final mySlotsProvider = FutureProvider.autoDispose<List<FtSlot>>((ref) async {
+  if (ref.watch(demoModeProvider)) return DemoData.slots;
   final api = ref.watch(apiClientProvider);
   final slots = await api.getMySlots(pageSize: 100);
   // Soonest first.
@@ -289,12 +302,16 @@ final notificationScraperProvider = Provider<NotificationScraper>(
 
 // Watch notifications from local DB
 final notificationsStreamProvider = StreamProvider<List<IntraNotification>>((ref) {
+  if (ref.watch(demoModeProvider)) {
+    return Stream.value(DemoData.notifications());
+  }
   final db = ref.watch(databaseProvider);
   return db.watchAllNotifications();
 });
 
 // Watch friend list from local DB
 final friendsStreamProvider = StreamProvider<List<Friend>>((ref) {
+  if (ref.watch(demoModeProvider)) return Stream.value(DemoData.friends());
   final db = ref.watch(databaseProvider);
   return db.watchAllFriends();
 });
@@ -362,6 +379,7 @@ class CheckinStatusNotifier extends StateNotifier<CheckinSnapshot> {
 // list, separate from campusLocationsProvider which reflects ubuntu sessions).
 final checkedInUsersProvider =
     FutureProvider.autoDispose<List<CheckedInUser>>((ref) async {
+  if (ref.watch(demoModeProvider)) return DemoData.checkedInUsers;
   final backend = ref.watch(backendClientProvider);
   final campusId = ref.watch(selectedCampusIdProvider);
   return backend.listCheckins(campusId: campusId);
@@ -383,6 +401,12 @@ class CampusPresence {
 // in shows once, as a login. Check-in-only users are appended.
 final campusPresenceProvider =
     FutureProvider.autoDispose<List<CampusPresence>>((ref) async {
+  if (ref.watch(demoModeProvider)) {
+    return DemoData.presence
+        .map((e) =>
+            CampusPresence(userId: e.userId, login: e.login, host: e.host))
+        .toList();
+  }
   final locations = await ref.watch(campusLocationsProvider.future);
   final checkins = await ref.watch(checkedInUsersProvider.future);
   final byId = <int, CampusPresence>{};

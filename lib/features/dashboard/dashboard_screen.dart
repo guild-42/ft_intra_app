@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
+import 'package:ft_intra/core/demo/demo_mode.dart';
 import 'package:ft_intra/core/models/user.dart';
 import 'package:ft_intra/features/dashboard/widgets/level_progress_card.dart';
 import 'package:ft_intra/features/dashboard/widgets/blackhole_timer.dart';
@@ -16,7 +17,9 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!kIsWeb) {
+    // Demo mode can't show the real intra WebView (no session), so use the
+    // API-driven dashboard, which reads the mock currentUserProvider.
+    if (!kIsWeb && !ref.watch(demoModeProvider)) {
       return const IntraWebView();
     }
     return const _ApiDashboard();

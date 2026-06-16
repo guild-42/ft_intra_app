@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/auth/web_redirect.dart';
+import 'package:ft_intra/core/demo/demo_mode.dart';
 
 class LoginScreen extends ConsumerWidget {
   const LoginScreen({super.key});
@@ -41,6 +43,14 @@ class LoginScreen extends ConsumerWidget {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(240, 52),
                 ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  enterDemoMode(ref);
+                  context.go('/dashboard');
+                },
+                child: Text(s.get('try_demo')),
               ),
             ],
           ),

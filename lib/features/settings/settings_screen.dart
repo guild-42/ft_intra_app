@@ -6,6 +6,7 @@ import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/notifications/notification_preferences.dart';
 import 'package:ft_intra/core/notifications/notification_optin.dart';
 import 'package:ft_intra/core/notifications/fcm_service.dart';
+import 'package:ft_intra/core/demo/demo_mode.dart';
 import 'package:ft_intra/features/settings/consent_dialog.dart';
 import 'package:ft_intra/l10n/strings.dart';
 
@@ -20,6 +21,7 @@ class SettingsScreen extends ConsumerWidget {
     final campusesAsync = ref.watch(allCampusesProvider);
     final prefs = ref.watch(notificationPreferencesProvider);
     final optin = ref.watch(notificationOptInProvider);
+    final demo = ref.watch(demoModeProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -118,10 +120,17 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: const Text('ft_intra v0.1.0'),
             ),
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: Text(s.get('logout'),
+              leading: Icon(demo ? Icons.close : Icons.logout, color: Colors.red),
+              title: Text(s.get(demo ? 'exit_demo' : 'logout'),
                   style: const TextStyle(color: Colors.red)),
               onTap: () async {
+                // Demo never wrote tokens — just leave demo mode, don't touch
+                // secure storage.
+                if (demo) {
+                  exitDemoMode(ref);
+                  context.go('/login');
+                  return;
+                }
                 final authService = ref.read(authServiceProvider);
                 await authService.logout();
                 if (context.mounted) context.go('/login');
