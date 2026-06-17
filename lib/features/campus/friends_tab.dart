@@ -380,6 +380,23 @@ class _FriendTile extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: ref.read(stringsProvider).get('notify_on_login'),
+              icon: Icon(
+                friend.notifyEnabled
+                    ? Icons.notifications_active
+                    : Icons.notifications_off_outlined,
+                size: 20,
+                color: friend.notifyEnabled
+                    ? const Color(0xFF00BABC)
+                    : Colors.grey,
+              ),
+              onPressed: () => ref
+                  .read(friendsServiceProvider)
+                  .toggleNotify(friend.userId, !friend.notifyEnabled),
+            ),
             if (friend.discordDmUrl != null && friend.discordDmUrl!.isNotEmpty)
               IconButton(
                 padding: EdgeInsets.zero,

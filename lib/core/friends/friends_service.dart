@@ -5,6 +5,7 @@ import 'package:ft_intra/core/api/ft_api_client.dart';
 import 'package:ft_intra/core/auth/token_storage.dart';
 import 'package:ft_intra/core/db/app_database.dart';
 import 'package:ft_intra/core/demo/demo_mode.dart';
+import 'package:ft_intra/core/notifications/fcm_service.dart';
 import 'package:ft_intra/core/providers.dart';
 
 /// A pending friend request (incoming or outgoing), as returned by the backend.
@@ -60,12 +61,31 @@ class FriendsService {
       await _cacheFriend(a['login'] as String);
     }
 
+    // Reflect the current per-friend notify set on the backend.
+    await syncWatchIds();
+
     FriendRequest toReq(Map<String, dynamic> e) =>
         FriendRequest(e['user_id'] as int, e['login'] as String);
     return FriendRequests(
       incoming: (lists['incoming'] ?? const []).map(toReq).toList(),
       outgoing: (lists['outgoing'] ?? const []).map(toReq).toList(),
     );
+  }
+
+  /// Toggle login push for one accepted friend, then push the updated watch
+  /// list to the backend (the friend poller only notifies friends on this list).
+  Future<void> toggleNotify(int friendUserId, bool enabled) async {
+    await _db.setFriendNotify(friendUserId, enabled);
+    await syncWatchIds();
+  }
+
+  /// Send the device's current friend watch list (notify-enabled friend ids) to
+  /// the backend. No-op if the device isn't registered for notifications.
+  Future<void> syncWatchIds() async {
+    final fcm = await FcmService.getToken();
+    if (fcm == null) return;
+    final ids = await _db.getFriendWatchIds();
+    await _backend.updatePreferences(fcmToken: fcm, friendWatchIds: ids);
   }
 
   Future<void> _cacheFriend(String login) async {
@@ -85,6 +105,9 @@ class FriendsService {
         level: main.level,
         blackholedAt: main.blackholedAt,
       );
+      // A newly-accepted friend gets login alerts by default (pref_friend still
+      // gates it globally); the user can mute per-friend in the list.
+      await _db.setFriendNotify(user.id, true);
     } catch (e) {
       debugPrint('FriendsService._cacheFriend($login) failed: $e');
     }
