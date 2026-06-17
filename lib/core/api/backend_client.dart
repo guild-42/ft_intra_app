@@ -142,6 +142,99 @@ class BackendClient {
     }
   }
 
+  // ───── Mutual friends (doc_v2/10 Phase D) ─────
+  //
+  // A friendship needs both parties' consent (request → accept) before the
+  // server watches presence. [accessToken] proves identity on every call.
+
+  /// Send a friend request to [targetLogin]. Returns the resulting status
+  /// ('pending' | 'accepted' | 'already_friends'), or null on failure.
+  Future<String?> requestFriend({
+    required String accessToken,
+    required String targetLogin,
+  }) async {
+    try {
+      final resp = await _dio.post(
+        '${FtConstants.backendBaseUrl}/api/friends/request',
+        data: {'access_token': accessToken, 'target_login': targetLogin},
+      );
+      final data = resp.data;
+      return data is Map ? data['status'] as String? : null;
+    } catch (e) {
+      debugPrint('requestFriend failed: $e');
+      return null;
+    }
+  }
+
+  /// Accept or decline an incoming request from [otherUserId] (or, as the
+  /// requester, cancel by passing accept=false).
+  Future<bool> respondFriend({
+    required String accessToken,
+    required int otherUserId,
+    required bool accept,
+  }) async {
+    try {
+      await _dio.post(
+        '${FtConstants.backendBaseUrl}/api/friends/respond',
+        data: {
+          'access_token': accessToken,
+          'other_user_id': otherUserId,
+          'accept': accept,
+        },
+      );
+      return true;
+    } catch (e) {
+      debugPrint('respondFriend failed: $e');
+      return false;
+    }
+  }
+
+  /// The caller's friendships, split into `incoming` / `outgoing` / `accepted`,
+  /// each a list of `{user_id, login, status}`.
+  Future<Map<String, List<Map<String, dynamic>>>> listFriends({
+    required String accessToken,
+  }) async {
+    try {
+      final resp = await _dio.post(
+        '${FtConstants.backendBaseUrl}/api/friends/list',
+        data: {'access_token': accessToken},
+      );
+      final data = resp.data;
+      List<Map<String, dynamic>> pick(String k) =>
+          (data is Map && data[k] is List)
+              ? (data[k] as List)
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+              : const [];
+      return {
+        'incoming': pick('incoming'),
+        'outgoing': pick('outgoing'),
+        'accepted': pick('accepted'),
+      };
+    } catch (e) {
+      debugPrint('listFriends failed: $e');
+      return const {'incoming': [], 'outgoing': [], 'accepted': []};
+    }
+  }
+
+  /// Remove an accepted friendship with [otherUserId].
+  Future<bool> deleteFriend({
+    required String accessToken,
+    required int otherUserId,
+  }) async {
+    try {
+      await _dio.delete(
+        '${FtConstants.backendBaseUrl}/api/friends',
+        data: {'access_token': accessToken, 'other_user_id': otherUserId},
+      );
+      return true;
+    } catch (e) {
+      debugPrint('deleteFriend failed: $e');
+      return false;
+    }
+  }
+
   // ───── Location-based check-in ─────
   //
   // The backend verifies [accessToken] against /v2/me and ties the check-in to

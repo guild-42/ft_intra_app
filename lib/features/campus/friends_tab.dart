@@ -4,8 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/db/app_database.dart';
-import 'package:ft_intra/core/api/ft_api_client.dart';
-import 'package:ft_intra/core/notifications/fcm_service.dart';
+import 'package:ft_intra/core/friends/friends_service.dart';
 import 'package:ft_intra/shared/widgets/user_avatar.dart';
 import 'package:ft_intra/features/campus/campus_helpers.dart';
 
@@ -15,77 +14,88 @@ class FriendsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final friendsAsync = ref.watch(friendsStreamProvider);
-    // Friends currently checked in via geofence (no ubuntu login). Used so a
-    // friend who is only checked in still counts as present.
+    final requests = ref.watch(friendRequestsProvider);
+    // Friends currently checked in. Used so a friend who is only checked in
+    // still counts as present.
     final checkedInIds = ref.watch(checkedInIdsProvider).maybeWhen(
           data: (ids) => ids,
           orElse: () => const <int>{},
         );
 
     return Scaffold(
-      body: friendsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
-        data: (friends) {
-          if (friends.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.people_outline, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      'No friends yet',
-                      style: TextStyle(color: Colors.grey, fontSize: 16),
+      body: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(friendRequestsProvider),
+        child: friendsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, _) => Center(child: Text('Error: $err')),
+          data: (friends) {
+            final incoming = requests.maybeWhen(
+                data: (r) => r.incoming, orElse: () => const <FriendRequest>[]);
+            final outgoing = requests.maybeWhen(
+                data: (r) => r.outgoing, orElse: () => const <FriendRequest>[]);
+
+            // Present = logged in (cluster) OR checked in. Sort present first.
+            bool present(Friend f) =>
+                f.lastSeenLocation != null || checkedInIds.contains(f.userId);
+            final sorted = [...friends];
+            sorted.sort((a, b) {
+              final ap = present(a);
+              final bp = present(b);
+              if (ap && !bp) return -1;
+              if (!ap && bp) return 1;
+              return a.login.compareTo(b.login);
+            });
+
+            return ListView(
+              children: [
+                if (incoming.isNotEmpty) ...[
+                  const _SectionLabel('Friend requests'),
+                  for (final r in incoming) _IncomingTile(request: r),
+                ],
+                if (outgoing.isNotEmpty) ...[
+                  const _SectionLabel('Pending (sent)'),
+                  for (final r in outgoing) _OutgoingTile(request: r),
+                ],
+                if (friends.isNotEmpty) const _SectionLabel('Friends'),
+                if (friends.isEmpty && incoming.isEmpty && outgoing.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(32, 80, 32, 32),
+                    child: Column(
+                      children: [
+                        Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text('No friends yet',
+                            style: TextStyle(color: Colors.grey, fontSize: 16)),
+                        SizedBox(height: 8),
+                        Text('Tap + to send a friend request by intra name',
+                            style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      ],
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Tap + to add by intra name',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                for (final f in sorted)
+                  _FriendTile(
+                    friend: f,
+                    checkedIn: checkedInIds.contains(f.userId),
+                  ),
+              ],
             );
-          }
-
-          // Present = logged in (cluster) OR checked in. Sort present first.
-          bool present(Friend f) =>
-              f.lastSeenLocation != null || checkedInIds.contains(f.userId);
-          final sorted = [...friends];
-          sorted.sort((a, b) {
-            final ap = present(a);
-            final bp = present(b);
-            if (ap && !bp) return -1;
-            if (!ap && bp) return 1;
-            return a.login.compareTo(b.login);
-          });
-
-          return ListView.builder(
-            itemCount: sorted.length,
-            itemBuilder: (context, i) => _FriendTile(
-              friend: sorted[i],
-              checkedIn: checkedInIds.contains(sorted[i].userId),
-            ),
-          );
-        },
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF00BABC),
-        onPressed: () => _showAddDialog(context, ref),
+        onPressed: () => _showRequestDialog(context, ref),
         child: const Icon(Icons.person_add),
       ),
     );
   }
 
-  void _showAddDialog(BuildContext context, WidgetRef ref) {
+  void _showRequestDialog(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add friend'),
+        title: const Text('Send friend request'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -104,71 +114,113 @@ class FriendsTab extends ConsumerWidget {
               final login = controller.text.trim();
               if (login.isEmpty) return;
               Navigator.pop(ctx);
-              await _addFriend(context, ref, login);
+              await _sendRequest(context, ref, login);
             },
-            child: const Text('Add'),
+            child: const Text('Send'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _addFriend(
+  Future<void> _sendRequest(
       BuildContext context, WidgetRef ref, String login) async {
-    final api = ref.read(apiClientProvider);
-    final db = ref.read(databaseProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    final status = await ref.read(friendsServiceProvider).request(login);
+    ref.invalidate(friendRequestsProvider);
+    final (text, color) = switch (status) {
+      'pending' => ('Request sent to $login', Colors.green),
+      'accepted' => ('You are now friends with $login', Colors.green),
+      'already_friends' => ('Already friends with $login', Colors.blueGrey),
+      _ => ('Could not send request to $login', Colors.red),
+    };
+    messenger.showSnackBar(
+        SnackBar(content: Text(text), backgroundColor: color));
+  }
+}
 
-    try {
-      final user = await api.getUser(login);
-      final main = user.cursusUsers.firstWhere(
-        (c) => c.cursus?.slug == '42cursus',
-        orElse: () => user.cursusUsers.isNotEmpty
-            ? user.cursusUsers.last
-            : throw Exception('no cursus'),
-      );
-      await db.addFriend(
-        userId: user.id,
-        login: user.login,
-        displayName: user.displayName,
-        imageUrl: user.image?.versions?.medium ?? user.image?.link,
-        level: main.level,
-        blackholedAt: main.blackholedAt,
-      );
-      // Backfill historical last-seen so we can show "Last: 3 days ago"
-      // even before the FriendWatcher catches a real online event.
-      _backfillLastSeen(api, db, user.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added ${user.login}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Not found: $login'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Theme.of(context).colorScheme.primary,
+          letterSpacing: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _IncomingTile extends ConsumerWidget {
+  final FriendRequest request;
+  const _IncomingTile({required this.request});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: ListTile(
+        leading: UserAvatar(login: request.login, radius: 22),
+        title: Text(request.login,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: const Text('wants to be your friend'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.check_circle, color: Colors.green),
+              onPressed: () => _respond(ref, true),
+            ),
+            IconButton(
+              icon: const Icon(Icons.cancel, color: Colors.redAccent),
+              onPressed: () => _respond(ref, false),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  Future<void> _backfillLastSeen(
-      FtApiClient api, AppDatabase db, int userId) async {
-    try {
-      final locations = await api.getUserLocations(userId, pageSize: 1);
-      if (locations.isEmpty) return;
-      final ts = DateTime.tryParse(locations.first.beginAt);
-      if (ts != null) {
-        await db.setFriendLastSeenIfMissing(userId, ts);
-      }
-    } catch (_) {
-      // ignore — best effort
-    }
+  Future<void> _respond(WidgetRef ref, bool accept) async {
+    await ref.read(friendsServiceProvider).respond(request.userId, accept);
+    ref.invalidate(friendRequestsProvider);
+  }
+}
+
+class _OutgoingTile extends ConsumerWidget {
+  final FriendRequest request;
+  const _OutgoingTile({required this.request});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: ListTile(
+        leading: UserAvatar(login: request.login, radius: 22),
+        title: Text(request.login),
+        subtitle: const Text('Request sent',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
+        trailing: TextButton(
+          onPressed: () async {
+            // Requester cancels by responding accept=false.
+            await ref
+                .read(friendsServiceProvider)
+                .respond(request.userId, false);
+            ref.invalidate(friendRequestsProvider);
+          },
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
   }
 }
 
@@ -328,21 +380,6 @@ class _FriendTile extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              tooltip: ref.read(stringsProvider).get('notify_on_login'),
-              icon: Icon(
-                friend.notifyEnabled
-                    ? Icons.notifications_active
-                    : Icons.notifications_off_outlined,
-                size: 20,
-                color: friend.notifyEnabled
-                    ? const Color(0xFF00BABC)
-                    : Colors.grey,
-              ),
-              onPressed: () => _toggleNotify(ref, friend),
-            ),
             if (friend.discordDmUrl != null && friend.discordDmUrl!.isNotEmpty)
               IconButton(
                 padding: EdgeInsets.zero,
@@ -352,7 +389,6 @@ class _FriendTile extends ConsumerWidget {
               ),
             PopupMenuButton<String>(
               onSelected: (action) async {
-                final db = ref.read(databaseProvider);
                 switch (action) {
                   case 'rename':
                     _showRenameDialog(context, ref);
@@ -361,7 +397,10 @@ class _FriendTile extends ConsumerWidget {
                     _showDiscordDialog(context, ref);
                     break;
                   case 'remove':
-                    await db.removeFriend(friend.userId);
+                    await ref
+                        .read(friendsServiceProvider)
+                        .remove(friend.userId);
+                    ref.invalidate(friendRequestsProvider);
                     break;
                 }
               },
@@ -494,19 +533,5 @@ class _FriendTile extends ConsumerWidget {
   Future<void> _openDiscord(String channelId) async {
     final discordUri = Uri.parse('discord://discord.com/channels/@me/$channelId');
     await launchUrl(discordUri, mode: LaunchMode.externalApplication);
-  }
-
-  /// Toggle per-friend login push, then sync the full watch list to backend.
-  Future<void> _toggleNotify(WidgetRef ref, Friend friend) async {
-    final db = ref.read(databaseProvider);
-    await db.setFriendNotify(friend.userId, !friend.notifyEnabled);
-
-    final fcmToken = await FcmService.getToken();
-    if (fcmToken == null) return;
-    final watchIds = await db.getFriendWatchIds();
-    await ref.read(backendClientProvider).updatePreferences(
-          fcmToken: fcmToken,
-          friendWatchIds: watchIds,
-        );
   }
 }
