@@ -552,9 +552,33 @@ class _NotifyButton extends ConsumerWidget {
   }
 
   Future<void> _onTap(BuildContext context, WidgetRef ref) async {
+    final s = ref.read(stringsProvider);
     final messenger = ScaffoldMessenger.of(context);
     final service = ref.read(friendsServiceProvider);
     if (state == FriendNotifyState.off) {
+      // Turning ON sends a friend request — confirm explicitly first.
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(s.get('friend_notify_confirm_title')),
+          content: Text(s
+              .get('friend_notify_confirm_body')
+              .replaceAll('{login}', friend.login)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.get('friend_notify_confirm_no')),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF00BABC)),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(s.get('friend_notify_confirm_yes')),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
       final status = await service.enableNotify(friend.userId, friend.login);
       final msg = switch (status) {
         'pending' =>
