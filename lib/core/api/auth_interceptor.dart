@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:ft_intra/config/constants.dart';
 import 'package:ft_intra/core/auth/token_storage.dart';
 
 class AuthInterceptor extends Interceptor {
@@ -50,15 +51,13 @@ class AuthInterceptor extends Interceptor {
     if (refreshToken == null) return false;
 
     try {
+      // The 42 app is a confidential client: the refresh grant needs
+      // client_secret, which only the backend holds. Refresh via the backend,
+      // not 42 directly (the device has no secret).
       final dio = Dio();
       final response = await dio.post(
-        'https://api.intra.42.fr/oauth/token',
-        data: {
-          'grant_type': 'refresh_token',
-          'refresh_token': refreshToken,
-          'client_id': await _tokenStorage.getClientId(),
-        },
-        options: Options(contentType: Headers.formUrlEncodedContentType),
+        '${FtConstants.backendBaseUrl}/api/oauth/refresh',
+        data: {'refresh_token': refreshToken},
       );
 
       final data = response.data as Map<String, dynamic>;
