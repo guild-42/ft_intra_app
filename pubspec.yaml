@@ -1,7 +1,7 @@
 name: ft_intra
 description: "42 Intranet mobile app — multi-language dashboard, push notifications, campus tracking"
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: ^3.8.1
@@ -77,6 +77,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
+  # App icon generation
+  flutter_launcher_icons: ^0.14.1
+
   # Code generation
   build_runner: ^2.4.13
   riverpod_generator: ^4.0.4-dev.3
@@ -87,3 +90,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/app_icon.png
+
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#3769B2"
