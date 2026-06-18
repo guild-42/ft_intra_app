@@ -14,7 +14,7 @@ class FriendsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final friendsAsync = ref.watch(friendsStreamProvider);
-    final requests = ref.watch(friendRequestsProvider);
+    final graphAsync = ref.watch(friendGraphProvider);
     // Friends currently checked in. Used so a friend who is only checked in
     // still counts as present.
     final checkedInIds = ref.watch(checkedInIdsProvider).maybeWhen(
@@ -24,15 +24,16 @@ class FriendsTab extends ConsumerWidget {
 
     return Scaffold(
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(friendRequestsProvider),
+        onRefresh: () async => ref.invalidate(friendGraphProvider),
         child: friendsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, _) => Center(child: Text('Error: $err')),
           data: (friends) {
-            final incoming = requests.maybeWhen(
-                data: (r) => r.incoming, orElse: () => const <FriendRequest>[]);
-            final outgoing = requests.maybeWhen(
-                data: (r) => r.outgoing, orElse: () => const <FriendRequest>[]);
+            final graph = graphAsync.maybeWhen(
+                data: (g) => g, orElse: () => const FriendGraph());
+            // Always surface incoming requests (consent to let them watch you),
+            // even if that person is also in your local list.
+            final incoming = graph.incoming;
 
             // Present = logged in (cluster) OR checked in. Sort present first.
             bool present(Friend f) =>
@@ -49,15 +50,11 @@ class FriendsTab extends ConsumerWidget {
             return ListView(
               children: [
                 if (incoming.isNotEmpty) ...[
-                  const _SectionLabel('Friend requests'),
+                  const _SectionLabel('Notification requests'),
                   for (final r in incoming) _IncomingTile(request: r),
                 ],
-                if (outgoing.isNotEmpty) ...[
-                  const _SectionLabel('Pending (sent)'),
-                  for (final r in outgoing) _OutgoingTile(request: r),
-                ],
                 if (friends.isNotEmpty) const _SectionLabel('Friends'),
-                if (friends.isEmpty && incoming.isEmpty && outgoing.isEmpty)
+                if (friends.isEmpty && incoming.isEmpty)
                   const Padding(
                     padding: EdgeInsets.fromLTRB(32, 80, 32, 32),
                     child: Column(
@@ -67,7 +64,7 @@ class FriendsTab extends ConsumerWidget {
                         Text('No friends yet',
                             style: TextStyle(color: Colors.grey, fontSize: 16)),
                         SizedBox(height: 8),
-                        Text('Tap + to send a friend request by intra name',
+                        Text('Tap + to add by intra name',
                             style: TextStyle(color: Colors.grey, fontSize: 12)),
                       ],
                     ),
@@ -76,6 +73,7 @@ class FriendsTab extends ConsumerWidget {
                   _FriendTile(
                     friend: f,
                     checkedIn: checkedInIds.contains(f.userId),
+                    notifyState: graph.stateOf(f.userId),
                   ),
               ],
             );
@@ -84,18 +82,18 @@ class FriendsTab extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF00BABC),
-        onPressed: () => _showRequestDialog(context, ref),
+        onPressed: () => _showAddDialog(context, ref),
         child: const Icon(Icons.person_add),
       ),
     );
   }
 
-  void _showRequestDialog(BuildContext context, WidgetRef ref) {
+  void _showAddDialog(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Send friend request'),
+        title: const Text('Add friend'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -114,28 +112,26 @@ class FriendsTab extends ConsumerWidget {
               final login = controller.text.trim();
               if (login.isEmpty) return;
               Navigator.pop(ctx);
-              await _sendRequest(context, ref, login);
+              await _addLocal(context, ref, login);
             },
-            child: const Text('Send'),
+            child: const Text('Add'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _sendRequest(
+  Future<void> _addLocal(
       BuildContext context, WidgetRef ref, String login) async {
     final messenger = ScaffoldMessenger.of(context);
-    final status = await ref.read(friendsServiceProvider).request(login);
-    ref.invalidate(friendRequestsProvider);
-    final (text, color) = switch (status) {
-      'pending' => ('Request sent to $login', Colors.green),
-      'accepted' => ('You are now friends with $login', Colors.green),
-      'already_friends' => ('Already friends with $login', Colors.blueGrey),
-      _ => ('Could not send request to $login', Colors.red),
-    };
-    messenger.showSnackBar(
-        SnackBar(content: Text(text), backgroundColor: color));
+    try {
+      final added = await ref.read(friendsServiceProvider).addLocal(login);
+      messenger.showSnackBar(SnackBar(
+          content: Text('Added $added'), backgroundColor: Colors.green));
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(
+          content: Text('Not found: $login'), backgroundColor: Colors.red));
+    }
   }
 }
 
@@ -160,6 +156,8 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+/// Someone wants to be notified about your logins (they enabled notify for you).
+/// Accepting lets the server push them when you log in.
 class _IncomingTile extends ConsumerWidget {
   final FriendRequest request;
   const _IncomingTile({required this.request});
@@ -172,7 +170,7 @@ class _IncomingTile extends ConsumerWidget {
         leading: UserAvatar(login: request.login, radius: 22),
         title: Text(request.login,
             style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: const Text('wants to be your friend'),
+        subtitle: const Text('wants login notifications about you'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -191,43 +189,22 @@ class _IncomingTile extends ConsumerWidget {
   }
 
   Future<void> _respond(WidgetRef ref, bool accept) async {
-    await ref.read(friendsServiceProvider).respond(request.userId, accept);
-    ref.invalidate(friendRequestsProvider);
-  }
-}
-
-class _OutgoingTile extends ConsumerWidget {
-  final FriendRequest request;
-  const _OutgoingTile({required this.request});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: ListTile(
-        leading: UserAvatar(login: request.login, radius: 22),
-        title: Text(request.login),
-        subtitle: const Text('Request sent',
-            style: TextStyle(fontSize: 12, color: Colors.grey)),
-        trailing: TextButton(
-          onPressed: () async {
-            // Requester cancels by responding accept=false.
-            await ref
-                .read(friendsServiceProvider)
-                .respond(request.userId, false);
-            ref.invalidate(friendRequestsProvider);
-          },
-          child: const Text('Cancel'),
-        ),
-      ),
-    );
+    await ref
+        .read(friendsServiceProvider)
+        .respondIncoming(request.userId, accept);
+    ref.invalidate(friendGraphProvider);
   }
 }
 
 class _FriendTile extends ConsumerWidget {
   final Friend friend;
   final bool checkedIn;
-  const _FriendTile({required this.friend, this.checkedIn = false});
+  final FriendNotifyState notifyState;
+  const _FriendTile({
+    required this.friend,
+    this.checkedIn = false,
+    this.notifyState = FriendNotifyState.off,
+  });
 
   int? get _blackholeDays {
     if (friend.blackholedAt == null) return null;
@@ -380,23 +357,7 @@ class _FriendTile extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              tooltip: ref.read(stringsProvider).get('notify_on_login'),
-              icon: Icon(
-                friend.notifyEnabled
-                    ? Icons.notifications_active
-                    : Icons.notifications_off_outlined,
-                size: 20,
-                color: friend.notifyEnabled
-                    ? const Color(0xFF00BABC)
-                    : Colors.grey,
-              ),
-              onPressed: () => ref
-                  .read(friendsServiceProvider)
-                  .toggleNotify(friend.userId, !friend.notifyEnabled),
-            ),
+            _NotifyButton(friend: friend, state: notifyState),
             if (friend.discordDmUrl != null && friend.discordDmUrl!.isNotEmpty)
               IconButton(
                 padding: EdgeInsets.zero,
@@ -416,8 +377,8 @@ class _FriendTile extends ConsumerWidget {
                   case 'remove':
                     await ref
                         .read(friendsServiceProvider)
-                        .remove(friend.userId);
-                    ref.invalidate(friendRequestsProvider);
+                        .removeLocal(friend.userId);
+                    ref.invalidate(friendGraphProvider);
                     break;
                 }
               },
@@ -550,5 +511,62 @@ class _FriendTile extends ConsumerWidget {
   Future<void> _openDiscord(String channelId) async {
     final discordUri = Uri.parse('discord://discord.com/channels/@me/$channelId');
     await launchUrl(discordUri, mode: LaunchMode.externalApplication);
+  }
+}
+
+/// Per-friend login-notification control with mutual-consent state:
+///  off     → grey bell-off. Tap: send friend request (→ pending).
+///  pending → orange hourglass. Tap: cancel the request.
+///  on      → teal bell. Tap: turn off (remove the accepted edge).
+class _NotifyButton extends ConsumerWidget {
+  final Friend friend;
+  final FriendNotifyState state;
+  const _NotifyButton({required this.friend, required this.state});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (icon, color, tip) = switch (state) {
+      FriendNotifyState.on => (
+          Icons.notifications_active,
+          const Color(0xFF00BABC),
+          'Login notifications on'
+        ),
+      FriendNotifyState.pending => (
+          Icons.hourglass_top,
+          Colors.orange,
+          'Request pending — tap to cancel'
+        ),
+      FriendNotifyState.off => (
+          Icons.notifications_off_outlined,
+          Colors.grey,
+          'Turn on login notifications'
+        ),
+    };
+    return IconButton(
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      tooltip: tip,
+      icon: Icon(icon, size: 20, color: color),
+      onPressed: () => _onTap(context, ref),
+    );
+  }
+
+  Future<void> _onTap(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final service = ref.read(friendsServiceProvider);
+    if (state == FriendNotifyState.off) {
+      final status = await service.enableNotify(friend.userId, friend.login);
+      final msg = switch (status) {
+        'pending' =>
+          'Request sent to ${friend.login}. You\'ll be notified once they accept.',
+        'accepted' || 'already_friends' =>
+          'Login notifications on for ${friend.login}',
+        _ => 'Could not send request to ${friend.login}',
+      };
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+    } else {
+      await service.disableNotify(friend.userId);
+    }
+    ref.invalidate(friendGraphProvider);
   }
 }
