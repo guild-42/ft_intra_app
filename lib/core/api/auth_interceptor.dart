@@ -10,6 +10,14 @@ class AuthInterceptor extends Interceptor {
   /// re-enters the full interceptor stack instead of a bare client.
   Dio? retryDio;
 
+  /// Single-flight refresh lock (static = shared across instances). Several 42
+  /// API calls 401 at once when the access token expires; without this each one
+  /// would refresh independently, but 42 ROTATES the refresh_token on use — only
+  /// the first refresh succeeds and the rest fail with the now-stale token and
+  /// wipe the freshly-saved valid tokens. Coalescing into one refresh fixes the
+  /// "everything stays 401 / logged out" bug.
+  static Future<bool>? _refreshInFlight;
+
   AuthInterceptor(this._tokenStorage);
 
   @override
@@ -46,7 +54,13 @@ class AuthInterceptor extends Interceptor {
     handler.next(err);
   }
 
-  Future<bool> _tryRefreshToken() async {
+  /// Coalesce concurrent refreshes into one in-flight operation.
+  Future<bool> _tryRefreshToken() {
+    return _refreshInFlight ??=
+        _doRefresh().whenComplete(() => _refreshInFlight = null);
+  }
+
+  Future<bool> _doRefresh() async {
     final refreshToken = await _tokenStorage.getRefreshToken();
     if (refreshToken == null) return false;
 
@@ -67,8 +81,16 @@ class AuthInterceptor extends Interceptor {
         expiresIn: data['expires_in'] as int?,
       );
       return true;
+    } on DioException catch (e) {
+      // Only force re-login when 42 actually rejected the refresh token
+      // (4xx). On network/5xx/timeout, keep the tokens so a later retry can
+      // recover instead of logging the user out on a transient blip.
+      final status = e.response?.statusCode;
+      if (status != null && status >= 400 && status < 500) {
+        await _tokenStorage.clearTokens();
+      }
+      return false;
     } catch (_) {
-      await _tokenStorage.clearTokens();
       return false;
     }
   }
