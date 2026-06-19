@@ -302,6 +302,11 @@ class _ServerDataSection extends ConsumerWidget {
     return ListTile(
       leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
       title: Text(s.get('notif_delete_data')),
+      // Clarify exactly what lives on the server (no 42 token / personal data),
+      // so the button isn't mistaken for "deleting nothing".
+      subtitle: Text(s.get('notif_delete_data_desc'),
+          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      isThreeLine: true,
       onTap: () => _delete(context, ref),
     );
   }
@@ -309,6 +314,25 @@ class _ServerDataSection extends ConsumerWidget {
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final s = ref.read(stringsProvider);
     final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.get('notif_delete_data')),
+        content: Text(s.get('notif_delete_data_desc')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(s.get('friend_notify_confirm_no')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(s.get('notif_delete_data')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     final fcm = await FcmService.getToken();
     final access = await ref.read(tokenStorageProvider).getAccessToken();
     if (fcm == null || access == null) return;
