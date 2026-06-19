@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:syncfusion_flutter_calendar/calendar.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/models/slot.dart';
+import 'package:ft_intra/shared/widgets/async_error_view.dart';
 import 'package:ft_intra/features/evaluations/slot_block.dart';
 
 const _teal = Color(0xFF00BABC);
@@ -94,23 +95,10 @@ class _FeedbackList extends ConsumerWidget {
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(describeApiError(err), textAlign: TextAlign.center),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => ref.invalidate(evalHistoryProvider),
-              child: Text(s.get('retry')),
-            ),
-          ],
-        ),
+      error: (err, _) => AsyncErrorView(
+        error: err,
+        message: describeApiError(err),
+        onRetry: () => ref.invalidate(evalHistoryProvider),
       ),
       data: (items) {
         if (items.isEmpty) {
@@ -249,23 +237,10 @@ class _ScheduleList extends ConsumerWidget {
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(describeApiError(err), textAlign: TextAlign.center),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => ref.invalidate(mySlotsProvider),
-              child: Text(s.get('retry')),
-            ),
-          ],
-        ),
+      error: (err, _) => AsyncErrorView(
+        error: err,
+        message: describeApiError(err),
+        onRetry: () => ref.invalidate(mySlotsProvider),
       ),
       data: (slots) {
         if (slots.isEmpty) {
@@ -335,28 +310,14 @@ class _MySlotsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(stringsProvider);
     final async = ref.watch(mySlotsProvider);
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(describeApiError(err), textAlign: TextAlign.center),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => ref.invalidate(mySlotsProvider),
-              child: Text(s.get('retry')),
-            ),
-          ],
-        ),
+      error: (err, _) => AsyncErrorView(
+        error: err,
+        message: describeApiError(err),
+        onRetry: () => ref.invalidate(mySlotsProvider),
       ),
       data: (slots) => _MySlotsCalendar(blocks: mergeSlots(slots)),
     );

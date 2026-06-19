@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ft_intra/core/models/event.dart';
 import 'package:ft_intra/modules/events/events_module.dart';
 import 'package:ft_intra/core/providers.dart';
+import 'package:ft_intra/shared/widgets/async_error_view.dart';
 
 class EventsScreen extends ConsumerWidget {
   const EventsScreen({super.key});
@@ -16,18 +17,9 @@ class EventsScreen extends ConsumerWidget {
       body: SafeArea(
         child: eventsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('$e', textAlign: TextAlign.center),
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: () => ref.invalidate(campusEventsProvider),
-                  child: Text(s.get('retry')),
-                ),
-              ],
-            ),
+          error: (e, _) => AsyncErrorView(
+            error: e,
+            onRetry: () => ref.invalidate(campusEventsProvider),
           ),
           data: (events) {
             final now = DateTime.now().toUtc();

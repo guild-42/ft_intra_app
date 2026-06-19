@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/demo/demo_mode.dart';
 import 'package:ft_intra/core/models/user.dart';
+import 'package:ft_intra/shared/widgets/async_error_view.dart';
 import 'package:ft_intra/features/dashboard/widgets/level_progress_card.dart';
 import 'package:ft_intra/features/dashboard/widgets/blackhole_timer.dart';
 import 'package:ft_intra/features/dashboard/widgets/eval_points_card.dart';
@@ -33,25 +34,13 @@ class _ApiDashboard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(currentUserProvider);
 
-    final s = ref.watch(stringsProvider);
 
     return Scaffold(
       body: userAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              Text('$err', textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => ref.invalidate(currentUserProvider),
-                child: Text(s.get('retry')),
-              ),
-            ],
-          ),
+        error: (err, _) => AsyncErrorView(
+          error: err,
+          onRetry: () => ref.invalidate(currentUserProvider),
         ),
         data: (user) => _DashboardContent(user: user),
       ),

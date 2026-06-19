@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/db/app_database.dart';
 import 'package:ft_intra/shared/widgets/user_avatar.dart';
+import 'package:ft_intra/shared/widgets/async_error_view.dart';
 import 'package:ft_intra/features/campus/campus_helpers.dart';
 
 const _teal = Color(0xFF00BABC);
@@ -60,20 +61,9 @@ class _ActiveUsersTabState extends ConsumerState<ActiveUsersTab>
         Expanded(
           child: presenceAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, _) => Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                  const SizedBox(height: 12),
-                  Text('$err', textAlign: TextAlign.center),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: () => ref.invalidate(campusPresenceProvider),
-                    child: Text(s.get('retry')),
-                  ),
-                ],
-              ),
+            error: (err, _) => AsyncErrorView(
+              error: err,
+              onRetry: () => ref.invalidate(campusPresenceProvider),
             ),
             data: (people) {
               if (people.isEmpty) {
