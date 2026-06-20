@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:ft_intra/core/providers.dart';
 import 'package:ft_intra/core/notifications/notification_preferences.dart';
 import 'package:ft_intra/core/notifications/notification_optin.dart';
@@ -115,15 +116,7 @@ class SettingsScreen extends ConsumerWidget {
             _SectionHeader(title: s.get('notif_my_server_data')),
             const _ServerDataSection(),
             const Divider(),
-            const ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('ft_intra'),
-              subtitle: Text(
-                'v1.0.0 · Unofficial app by the Guild42 community.\n'
-                'Not affiliated with or endorsed by École 42.',
-              ),
-              isThreeLine: true,
-            ),
+            const _AboutTile(),
             ListTile(
               leading: const Icon(Icons.public),
               title: Text(s.get('about')),
@@ -293,6 +286,32 @@ Future<bool> _registerDevice(WidgetRef ref) async {
 }
 
 /// "My data (server)" — delete the device registration from the backend.
+/// About row showing the real app version (auto-updates with each build).
+class _AboutTile extends StatelessWidget {
+  const _AboutTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snap) {
+        final v = snap.hasData
+            ? 'v${snap.data!.version} (${snap.data!.buildNumber})'
+            : '';
+        return ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: const Text('ft_intra'),
+          subtitle: Text(
+            '$v · Unofficial app by the Guild42 community.\n'
+            'Not affiliated with or endorsed by École 42.',
+          ),
+          isThreeLine: true,
+        );
+      },
+    );
+  }
+}
+
 class _ServerDataSection extends ConsumerWidget {
   const _ServerDataSection();
 

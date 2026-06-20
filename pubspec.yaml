@@ -1,7 +1,7 @@
 name: ft_intra
 description: "42 Intranet mobile app — multi-language dashboard, push notifications, campus tracking"
 publish_to: 'none'
-version: 1.0.2+4
+version: 1.0.2+6
 
 environment:
   sdk: ^3.8.1
@@ -39,6 +39,9 @@ dependencies:
 
   # Crypto
   crypto: ^3.0.6
+
+  # App version (Settings About)
+  package_info_plus: ^8.1.2
 
   # HTML parsing
   html: ^0.15.5
